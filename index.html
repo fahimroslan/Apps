@@ -127,11 +127,18 @@
                   </p>
                   <div class="inline-flex flex-col items-center rounded-lg px-4 py-2 bg-emerald-100 dark:bg-sky-950">
                     <span class="text-xs font-medium text-emerald-800 dark:text-sky-200">
-                      Baki Masa
+                      Masa Berlalu
                     </span>
                     <span id="current-prayer-left" class="text-2xl font-bold text-emerald-900 dark:text-sky-100">
                       -:--:--
                     </span>
+                  </div>
+                  <div class="space-y-1 text-left">
+                    <div class="text-xs font-medium text-slate-500 dark:text-slate-400">Progress Solat</div>
+                    <div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                      <div id="prayer-progress" class="h-full w-0 bg-gradient-to-r from-emerald-500 to-sky-500 transition-[width] duration-300"></div>
+                    </div>
+                    <div id="prayer-progress-text" class="text-xs text-slate-600 dark:text-slate-300">0%</div>
                   </div>
                 </div>
                 <div class="text-center space-y-2">
@@ -426,6 +433,8 @@
     const currentPrayerNameEl = document.getElementById("current-prayer-name");
     const currentPrayerTimeEl = document.getElementById("current-prayer-time");
     const currentPrayerLeftEl = document.getElementById("current-prayer-left");
+    const prayerProgressEl = document.getElementById("prayer-progress");
+    const prayerProgressTextEl = document.getElementById("prayer-progress-text");
     const nextPrayerNameEl = document.getElementById("next-prayer-name");
     const nextPrayerTimeEl = document.getElementById("next-prayer-time");
     const countdownEl = document.getElementById("countdown");
@@ -744,6 +753,7 @@
       const nowEpochMs = now.getTime();
       let nextFound = false;
       let currentPrayer = null;
+      let currentPrayerStartMs = null;
       const firstPrayer = prayerTimesCache[0];
       const lastPrayer = prayerTimesCache[prayerTimesCache.length - 1];
       const isBeforeFirstPrayer =
@@ -754,6 +764,7 @@
         const prayerEpochMs = prayer.epoch * 1000;
         if (prayerEpochMs <= nowEpochMs) {
           currentPrayer = prayer;
+          currentPrayerStartMs = prayerEpochMs;
         }
         if (prayerEpochMs > nowEpochMs) {
           nextPrayerTarget = prayerEpochMs;
@@ -794,6 +805,7 @@
           epoch: lastPrayer.epoch - 86400, // previous day's Isyak (~24h earlier)
           fromPreviousDay: true,
         };
+        currentPrayerStartMs = (lastPrayer.epoch - 86400) * 1000;
       }
 
       // After Isyak: next is Subuh esok
@@ -805,6 +817,7 @@
         nextPrayerNameEl.textContent = subuh.name;
         nextPrayerTimeEl.textContent = formatTime(subuh.epoch) + " (esok)";
         currentPrayer = lastPrayer;
+        currentPrayerStartMs = lastPrayer ? lastPrayer.epoch * 1000 : null;
 
         document.querySelectorAll("#results > div").forEach((card) => {
           card.classList.remove(
@@ -840,16 +853,28 @@
       }
 
       let formattedDiff = null;
-      if (nextPrayerTarget) {
-        const diff = nextPrayerTarget - nowEpochMs;
-        formattedDiff = formatCountdown(diff);
+      if (nextPrayerTarget && currentPrayerStartMs !== null) {
+        const remainingMs = nextPrayerTarget - nowEpochMs;
+        formattedDiff = formatCountdown(Math.max(remainingMs, 0));
         countdownEl.textContent = formattedDiff;
-        currentPrayerLeftEl.textContent = currentPrayer
-          ? formattedDiff
-          : "-:--:--";
+
+        const elapsedMs = Math.max(nowEpochMs - currentPrayerStartMs, 0);
+        currentPrayerLeftEl.textContent = formatCountdown(elapsedMs);
+
+        const totalMs = nextPrayerTarget - currentPrayerStartMs;
+        const progress =
+          totalMs > 0 ? Math.min(Math.max(elapsedMs / totalMs, 0), 1) : 0;
+        if (prayerProgressEl) {
+          prayerProgressEl.style.width = `${progress * 100}%`;
+        }
+        if (prayerProgressTextEl) {
+          prayerProgressTextEl.textContent = `${Math.round(progress * 100)}%`;
+        }
       } else {
         countdownEl.textContent = "-:--:--";
         currentPrayerLeftEl.textContent = "-:--:--";
+        if (prayerProgressEl) prayerProgressEl.style.width = "0%";
+        if (prayerProgressTextEl) prayerProgressTextEl.textContent = "0%";
       }
     }
 
@@ -876,6 +901,8 @@
       currentPrayerNameEl.textContent = "-";
       currentPrayerTimeEl.textContent = "";
       currentPrayerLeftEl.textContent = "-:--:--";
+      if (prayerProgressEl) prayerProgressEl.style.width = "0%";
+      if (prayerProgressTextEl) prayerProgressTextEl.textContent = "0%";
       infoZoneEl.textContent = "Memuatkan...";
       infoDateHijriEl.textContent = "Memuatkan...";
 
