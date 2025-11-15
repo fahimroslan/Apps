@@ -443,6 +443,7 @@
     let isFetchingTimes = false;
     let lastFetchedDateKey = null;
     let favoriteZones = [];
+    let zoneChangeTimeout = null;
 
     const MAX_FAVORITES = 3;
     const OFFICIAL_TIMEZONE = "MYT (UTC+08:00)";
@@ -482,11 +483,18 @@
     }
 
     // === TIME & FORMAT HELPERS ===
+    function getMalaysiaNow() {
+      // Current time in Asia/Kuala_Lumpur regardless of client timezone
+      return new Date(
+        new Date().toLocaleString("en-US", { timeZone: "Asia/Kuala_Lumpur" })
+      );
+    }
+
     function startClock() {
       if (clockInterval) clearInterval(clockInterval);
 
       function updateTime() {
-        const now = new Date();
+        const now = getMalaysiaNow();
         const timeString = now.toLocaleTimeString("ms-MY", {
           timeZone: "Asia/Kuala_Lumpur",
           hour: "2-digit",
@@ -736,6 +744,10 @@
       const nowEpochMs = now.getTime();
       let nextFound = false;
       let currentPrayer = null;
+      const firstPrayer = prayerTimesCache[0];
+      const lastPrayer = prayerTimesCache[prayerTimesCache.length - 1];
+      const isBeforeFirstPrayer =
+        firstPrayer && nowEpochMs < firstPrayer.epoch * 1000;
 
       // Find first prayer after now
       for (const prayer of prayerTimesCache) {
@@ -775,6 +787,15 @@
         }
       }
 
+      // Midnight window: keep Isyak active until Subuh arrives
+      if (!currentPrayer && isBeforeFirstPrayer && lastPrayer) {
+        currentPrayer = {
+          name: lastPrayer.name,
+          epoch: lastPrayer.epoch - 86400, // previous day's Isyak (~24h earlier)
+          fromPreviousDay: true,
+        };
+      }
+
       // After Isyak: next is Subuh esok
       if (!nextFound) {
         const subuh = prayerTimesCache[0];
@@ -808,7 +829,9 @@
       }
 
       if (currentPrayer) {
-        currentPrayerNameEl.textContent = currentPrayer.name;
+        currentPrayerNameEl.textContent = currentPrayer.fromPreviousDay
+          ? `${currentPrayer.name} (semalam)`
+          : currentPrayer.name;
         currentPrayerTimeEl.textContent =
           "bermula " + formatTime(currentPrayer.epoch);
       } else {
@@ -857,10 +880,10 @@
       infoDateHijriEl.textContent = "Memuatkan...";
 
       try {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = today.getMonth() + 1;
-        const day = today.getDate();
+        const malaysiaNow = getMalaysiaNow();
+        const [year, month, day] = getMalaysiaDateKey(malaysiaNow)
+          .split("-")
+          .map(Number);
 
         const url = `https://mpt-server.vercel.app/api/v2/solat/${zone}?year=${year}&month=${month}`;
         const response = await fetch(url);
@@ -903,9 +926,9 @@
           "pb-4 text-sm text-center text-emerald-700 dark:text-emerald-400";
         infoZoneEl.textContent = data.zone;
         infoDateHijriEl.textContent = todayPrayer.hijri || "-";
-        lastFetchedDateKey = getMalaysiaDateKey(today);
+        lastFetchedDateKey = getMalaysiaDateKey(malaysiaNow);
 
-        updateNextPrayer(today);
+        updateNextPrayer(malaysiaNow);
       } catch (err) {
         console.error(err);
         statusEl.textContent = "Ralat: " + err.message;
@@ -933,6 +956,12 @@
     if (zoneSelect) {
       zoneSelect.addEventListener("change", () => {
         updateZoneDetails();
+        if (zoneChangeTimeout) clearTimeout(zoneChangeTimeout);
+        zoneChangeTimeout = setTimeout(() => {
+          if (!isFetchingTimes) {
+            getPrayerTimes();
+          }
+        }, 150);
       });
     }
 
