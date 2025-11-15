@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8" />
+  <title>Aplikasi Waktu Solat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Tailwind config: enable dark mode via class -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
+      darkMode: "class",
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Optional: subtle spinner for buttons if needed */
+    .spinner {
+      width: 1rem;
+      height: 1rem;
+      border-radius: 9999px;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-top-color: rgba(255, 255, 255, 1);
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300">
+
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <main class="max-w-6xl w-full space-y-6">
+
+      <!-- Header + Theme Toggle -->
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div
+            class="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-emerald-400 flex items-center justify-center shadow-md text-white dark:from-sky-600 dark:to-emerald-500"
+            aria-hidden="true"
+          >
+            <svg
+              viewBox="0 0 32 32"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="w-8 h-8"
+            >
+              <path d="M7 23a11 11 0 0 0 12-18 10 10 0 1 1-12 18Z" />
+              <path d="M20 6.5 22 5" />
+              <path d="M24.5 11 26 9" />
+              <path d="M7 14l-3-1" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-3xl font-bold text-sky-800 dark:text-sky-300">
+              Waktu Solat Malaysia
+            </h1>
+            <p
+              class="text-sm sm:text-base text-slate-700 dark:text-slate-200 flex flex-wrap items-center gap-3"
+            >
+              <span id="current-time" class="font-semibold">
+                Memuatkan masa semasa...
+              </span>
+              <span id="current-date" class="text-slate-600 dark:text-slate-300">
+                Memuatkan tarikh...
+              </span>
+              <span
+                id="current-timezone"
+                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                MYT (UTC+08:00)
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <button
+          id="theme-toggle"
+          type="button"
+          class="inline-flex items-center justify-center px-3 py-2 rounded-full border border-slate-300 dark:border-slate-600 text-sm font-medium bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+        >
+          Tukar ke Mod Gelap
+        </button>
+      </header>
+
+      <!-- Layout: Left (main) / Right (controls & info) -->
+      <div class="grid gap-6 lg:grid-cols-3">
+
+        <!-- LEFT COLUMN: Next Prayer + Prayer Times -->
+        <section class="space-y-6 lg:col-span-2">
+
+          <!-- Location Card -->
+          <div class="rounded-xl shadow-lg bg-white dark:bg-slate-900 transition">
+            <div class="p-4 sm:p-6 space-y-2">
+              <p class="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 uppercase">
+                Lokasi Semasa
+              </p>
+              <h2
+                id="selected-zone-name"
+                class="text-4xl font-bold text-slate-900 dark:text-slate-50"
+              >
+                Pilih zon
+              </h2>
+            </div>
+          </div>
+
+          <!-- Next Prayer Card -->
+          <div class="rounded-xl shadow-lg bg-white dark:bg-slate-900 transition">
+            <div class="p-4 sm:p-6 space-y-4">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div class="text-center space-y-2">
+                  <p class="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 uppercase">
+                    Solat Kini
+                  </p>
+                  <h2 id="current-prayer-name" class="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                    -
+                  </h2>
+                  <p id="current-prayer-time" class="text-sm text-slate-600 dark:text-slate-300">
+                    &nbsp;
+                  </p>
+                  <div class="inline-flex flex-col items-center rounded-lg px-4 py-2 bg-emerald-100 dark:bg-sky-950">
+                    <span class="text-xs font-medium text-emerald-800 dark:text-sky-200">
+                      Baki Masa
+                    </span>
+                    <span id="current-prayer-left" class="text-2xl font-bold text-emerald-900 dark:text-sky-100">
+                      -:--:--
+                    </span>
+                  </div>
+                </div>
+                <div class="text-center space-y-2">
+                  <p class="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 uppercase">
+                    Solat Seterusnya
+                  </p>
+                  <h2 id="next-prayer-name" class="text-3xl font-bold text-sky-700 dark:text-sky-300">
+                    -
+                  </h2>
+                  <p id="next-prayer-time" class="text-sm text-slate-600 dark:text-slate-300">
+                    &nbsp;
+                  </p>
+                  <div class="inline-flex flex-col items-center rounded-lg px-4 py-2 bg-sky-100 dark:bg-sky-950">
+                    <span class="text-xs font-medium text-sky-800 dark:text-sky-200">
+                      Kiraan Masa
+                    </span>
+                    <span id="countdown" class="text-2xl font-bold text-sky-900 dark:text-sky-100">
+                      -:--:--
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prayer Times Card -->
+          <div class="rounded-xl shadow-lg overflow-hidden bg-white dark:bg-slate-900 transition">
+            <div class="p-4 sm:p-6">
+              <h2 class="text-xl font-semibold text-sky-800 dark:text-sky-300 mb-4">
+                Waktu Solat Hari Ini
+              </h2>
+
+              <!-- Status Message -->
+              <div
+                id="status"
+                class="pb-4 text-sm text-center text-slate-700 dark:text-slate-300"
+              >
+              </div>
+
+              <!-- Results Grid -->
+              <div
+                id="results"
+                class="grid grid-cols-2 sm:grid-cols-3 gap-4 hidden"
+              >
+                <!-- Cards injected by JS -->
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN: Controls + Info -->
+        <section class="space-y-6">
+
+          <!-- Controls Card -->
+          <div class="rounded-xl shadow-lg overflow-hidden bg-white dark:bg-slate-900 transition">
+            <div class="p-4 sm:p-6">
+              <h2 class="text-xl font-semibold text-sky-800 dark:text-sky-300 mb-4">
+                Tetapan
+              </h2>
+
+              <div class="mb-4">
+                <label
+                  for="zone"
+                  class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+                >
+                  Pilih Zon Anda:
+                </label>
+
+                <select
+                  id="zone"
+                  class="w-full p-2.5 rounded-md border border-slate-300 dark:border-slate-700
+                         bg-white dark:bg-slate-800
+                         text-slate-800 dark:text-slate-200
+                         shadow-sm transition
+                         focus:ring-sky-500 focus:border-sky-500
+                         dark:focus:ring-sky-400 dark:focus:border-sky-400"
+                >
+                  <optgroup label="Wilayah Persekutuan">
+                    <option value="WLY01" selected>WLY01 - Kuala Lumpur, Putrajaya</option>
+                    <option value="WLY02">WLY02 - Labuan</option>
+                  </optgroup>
+
+                  <optgroup label="Selangor">
+                    <option value="SGR01">SGR01 - Gombak, Petaling, Sepang, Hulu Langat, Hulu Selangor, Shah Alam</option>
+                    <option value="SGR02">SGR02 - Kuala Selangor, Sabak Bernam</option>
+                    <option value="SGR03">SGR03 - Klang, Kuala Langat</option>
+                  </optgroup>
+
+                  <optgroup label="Johor">
+                    <option value="JHR01">JHR01 - Pulau Aur dan Pulau Pemanggil</option>
+                    <option value="JHR02">JHR02 - Johor Bahru, Kota Tinggi, Mersing, Kulai</option>
+                    <option value="JHR03">JHR03 - Kluang, Pontian</option>
+                    <option value="JHR04">JHR04 - Batu Pahat, Muar, Segamat, Gemas Johor, Tangkak</option>
+                  </optgroup>
+
+                  <optgroup label="Kedah">
+                    <option value="KDH01">KDH01 - Kota Setar, Kubang Pasu, Pokok Sena</option>
+                    <option value="KDH02">KDH02 - Kuala Muda, Yan, Pendang</option>
+                    <option value="KDH03">KDH03 - Padang Terap, Sik</option>
+                    <option value="KDH04">KDH04 - Baling</option>
+                    <option value="KDH05">KDH05 - Bandar Baharu, Kulim</option>
+                    <option value="KDH06">KDH06 - Langkawi</option>
+                    <option value="KDH07">KDH07 - Puncak Gunung Jerai</option>
+                  </optgroup>
+
+                  <optgroup label="Kelantan">
+                    <option value="KTN01">KTN01 - Bachok, Kota Bharu, Machang, Pasir Mas, Pasir Puteh, Tanah Merah, Tumpat, Kuala Krai, Mukim Chiku</option>
+                    <option value="KTN02">KTN02 - Gua Musang (Daerah Galas Dan Bertam), Jeli, Jajahan Kecil Lojing</option>
+                  </optgroup>
+
+                  <optgroup label="Melaka">
+                    <option value="MLK01">MLK01 - Seluruh Negeri Melaka</option>
+                  </optgroup>
+
+                  <optgroup label="Negeri Sembilan">
+                    <option value="NGS01">NGS01 - Tampin, Jempol</option>
+                    <option value="NGS02">NGS02 - Jelebu, Kuala Pilah, Rembau</option>
+                    <option value="NGS03">NGS03 - Port Dickson, Seremban</option>
+                  </optgroup>
+
+                  <optgroup label="Pahang">
+                    <option value="PHG01">PHG01 - Pulau Tioman</option>
+                    <option value="PHG02">PHG02 - Kuantan, Pekan, Rompin, Muadzam Shah</option>
+                    <option value="PHG03">PHG03 - Jerantut, Temerloh, Maran, Bera, Chenor, Jengka</option>
+                    <option value="PHG04">PHG04 - Bentong, Lipis, Raub</option>
+                    <option value="PHG05">PHG05 - Genting Sempah, Janda Baik, Bukit Tinggi</option>
+                    <option value="PHG06">PHG06 - Cameron Highlands, Genting Highlands, Bukit Fraser</option>
+                    <option value="PHG07">PHG07 - Zon Khas Daerah Rompin</option>
+                  </optgroup>
+
+                  <optgroup label="Perlis">
+                    <option value="PLS01">PLS01 - Kangar, Padang Besar, Arau</option>
+                  </optgroup>
+
+                  <optgroup label="Pulau Pinang">
+                    <option value="PNG01">PNG01 - Seluruh Negeri Pulau Pinang</option>
+                  </optgroup>
+
+                  <optgroup label="Perak">
+                    <option value="PRK01">PRK01 - Tapah, Slim River, Tanjung Malim</option>
+                    <option value="PRK02">PRK02 - Kuala Kangsar, Sg. Siput, Ipoh, Batu Gajah, Kampar</option>
+                    <option value="PRK03">PRK03 - Lenggong, Pengkalan Hulu, Grik</option>
+                    <option value="PRK04">PRK04 - Temengor, Belum</option>
+                    <option value="PRK05">PRK05 - Kg Gajah, Teluk Intan, Bagan Datuk, Seri Iskandar, Beruas, Parit, Lumut, Sitiawan, Pulau Pangkor</option>
+                    <option value="PRK06">PRK06 - Selama, Taiping, Bagan Serai, Parit Buntar</option>
+                    <option value="PRK07">PRK07 - Bukit Larut</option>
+                  </optgroup>
+
+                  <optgroup label="Sabah">
+                    <option value="SBH01">SBH01 - Bahagian Sandakan (Timur), Bukit Garam, Semawang, Temanggong, Tambisan, Bandar Sandakan, Sukau</option>
+                    <option value="SBH02">SBH02 - Beluran, Telupid, Pinangah, Terusan, Kuamut, Bahagian Sandakan (Barat)</option>
+                    <option value="SBH03">SBH03 - Lahad Datu, Silabukan, Kunak, Sahabat, Semporna, Tungku, Bahagian Tawau (Timur)</option>
+                    <option value="SBH04">SBH04 - Bandar Tawau, Balong, Merotai, Kalabakan, Bahagian Tawau (Barat)</option>
+                    <option value="SBH05">SBH05 - Kudat, Kota Marudu, Pitas, Pulau Banggi, Bahagian Kudat</option>
+                    <option value="SBH06">SBH06 - Gunung Kinabalu</option>
+                    <option value="SBH07">SBH07 - Kota Kinabalu, Ranau, Kota Belud, Tuaran, Penampang, Papar, Putatan, Bahagian Pantai Barat</option>
+                    <option value="SBH08">SBH08 - Pensiangan, Keningau, Tambunan, Nabawan, Bahagian Pendalaman (Atas)</option>
+                    <option value="SBH09">SBH09 - Beaufort, Kuala Penyu, Sipitang, Tenom, Long Pasia, Membakut, Weston, Bahagian Pendalaman (Bawah)</option>
+                  </optgroup>
+
+                  <optgroup label="Sarawak">
+                    <option value="SWK01">SWK01 - Limbang, Lawas, Sundar, Trusan</option>
+                    <option value="SWK02">SWK02 - Miri, Niah, Bekenu, Sibuti, Marudi</option>
+                    <option value="SWK03">SWK03 - Pandan, Belaga, Suai, Tatau, Sebauh, Bintulu</option>
+                    <option value="SWK04">SWK04 - Sibu, Mukah, Dalat, Song, Igan, Oya, Balingian, Kanowit, Kapit</option>
+                    <option value="SWK05">SWK05 - Sarikei, Matu, Julau, Rajang, Daro, Bintangor, Belawai</option>
+                    <option value="SWK06">SWK06 - Lubok Antu, Sri Aman, Roban, Debak, Kabong, Lingga, Engkelili, Betong, Spaoh, Pusa, Saratok</option>
+                    <option value="SWK07">SWK07 - Serian, Simunjan, Samarahan, Sebuyau, Meludam</option>
+                    <option value="SWK08">SWK08 - Kuching, Bau, Lundu, Sematan</option>
+                    <option value="SWK09">SWK09 - Zon Khas (Kampung Patarikan)</option>
+                  </optgroup>
+
+                  <optgroup label="Terengganu">
+                    <option value="TRG01">TRG01 - Kuala Terengganu, Marang, Kuala Nerus</option>
+                    <option value="TRG02">TRG02 - Besut, Setiu</option>
+                    <option value="TRG03">TRG03 - Hulu Terengganu</option>
+                    <option value="TRG04">TRG04 - Dungun, Kemaman</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <button
+                id="btnLoad"
+                class="w-full py-2 px-4 rounded-md font-semibold
+                       bg-sky-600 text-white
+                       hover:bg-sky-700
+                       dark:bg-sky-500 dark:hover:bg-sky-400
+                       transition flex items-center justify-center gap-2"
+              >
+                Dapatkan Waktu Solat
+              </button>
+
+              <button
+                id="btnAddFavorite"
+                class="mt-3 w-full py-2 px-4 rounded-md font-semibold
+                       bg-emerald-600 text-white
+                       hover:bg-emerald-700
+                       dark:bg-emerald-500 dark:hover:bg-emerald-400
+                       transition"
+              >
+                Tambah ke Kegemaran
+              </button>
+
+              <div class="mt-4 space-y-2">
+                <p class="text-sm font-medium text-slate-600 dark:text-slate-300">
+                  Zon Kegemaran (maks 3):
+                </p>
+                <div
+                  id="favorite-container"
+                  class="flex flex-wrap gap-2"
+                >
+                  <p
+                    id="favorite-empty"
+                    class="text-sm text-slate-500 dark:text-slate-400"
+                  >
+                    Tiada kegemaran ditetapkan.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detail Card -->
+          <div class="rounded-xl shadow-lg overflow-hidden bg-white dark:bg-slate-900 transition">
+            <div class="p-4 sm:p-6">
+              <h2 class="text-xl font-semibold text-sky-800 dark:text-sky-300 mb-4">
+                Maklumat
+              </h2>
+
+              <div class="space-y-3">
+                <div>
+                  <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Zon
+                  </p>
+                  <p
+                    id="info-zone"
+                    class="text-lg font-semibold text-sky-900 dark:text-sky-200"
+                  >
+                    -
+                  </p>
+                </div>
+
+                <div>
+                  <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Tarikh Miladi
+                  </p>
+                  <p
+                    id="info-date-gregorian"
+                    class="text-lg font-semibold text-sky-900 dark:text-sky-200"
+                  >
+                    -
+                  </p>
+                </div>
+
+                <div>
+                  <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Tarikh Hijri
+                  </p>
+                  <p
+                    id="info-date-hijri"
+                    class="text-lg font-semibold text-sky-900 dark:text-sky-200"
+                  >
+                    -
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+      <footer class="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
+        Developed By Fahim Roslan · Copyright Fahim Roslan 2025
+        Developed By Fahim Roslan · Copyright Fahim Roslan 2025
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // === ELEMENTS ===
+    const zoneSelect = document.getElementById("zone");
+    const loadButton = document.getElementById("btnLoad");
+    const addFavoriteBtn = document.getElementById("btnAddFavorite");
+    const favoriteContainer = document.getElementById("favorite-container");
+    const favoriteEmptyEl = document.getElementById("favorite-empty");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+    const timeEl = document.getElementById("current-time");
+    const currentDateTitleEl = document.getElementById("current-date");
+    const currentTimezoneEl = document.getElementById("current-timezone");
+
+    const currentPrayerNameEl = document.getElementById("current-prayer-name");
+    const currentPrayerTimeEl = document.getElementById("current-prayer-time");
+    const currentPrayerLeftEl = document.getElementById("current-prayer-left");
+    const nextPrayerNameEl = document.getElementById("next-prayer-name");
+    const nextPrayerTimeEl = document.getElementById("next-prayer-time");
+    const countdownEl = document.getElementById("countdown");
+
+    const infoZoneEl = document.getElementById("info-zone");
+    const infoDateGregorianEl = document.getElementById("info-date-gregorian");
+    const infoDateHijriEl = document.getElementById("info-date-hijri");
+    const selectedZoneNameEl = document.getElementById("selected-zone-name");
+
+    const themeToggleBtn = document.getElementById("theme-toggle");
+
+    let prayerTimesCache = []; // { name, epoch } for Subuh, Zohor, Asar, Maghrib, Isyak
+    let nextPrayerTarget = null;
+    let clockInterval;
+    let isFetchingTimes = false;
+    let lastFetchedDateKey = null;
+    let favoriteZones = [];
+
+    const MAX_FAVORITES = 3;
+    const OFFICIAL_TIMEZONE = "MYT (UTC+08:00)";
+
+    // === THEME HANDLING ===
+    function applyTheme(theme) {
+      if (theme === "dark") {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+        if (themeToggleBtn) themeToggleBtn.textContent = "Tukar ke Mod Cerah";
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+        if (themeToggleBtn) themeToggleBtn.textContent = "Tukar ke Mod Gelap";
+      }
+    }
+
+    (function initTheme() {
+      const saved = localStorage.getItem("theme");
+      if (saved === "dark" || saved === "light") {
+        applyTheme(saved);
+      } else if (
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+      ) {
+        applyTheme("dark");
+      } else {
+        applyTheme("light");
+      }
+    })();
+
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener("click", () => {
+        const isDark = document.documentElement.classList.contains("dark");
+        applyTheme(isDark ? "light" : "dark");
+      });
+    }
+
+    // === TIME & FORMAT HELPERS ===
+    function startClock() {
+      if (clockInterval) clearInterval(clockInterval);
+
+      function updateTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString("ms-MY", {
+          timeZone: "Asia/Kuala_Lumpur",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        });
+        const dateString = now.toLocaleDateString("ms-MY", {
+          timeZone: "Asia/Kuala_Lumpur",
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+
+        timeEl.textContent = timeString;
+        if (currentDateTitleEl) currentDateTitleEl.textContent = dateString;
+        if (currentTimezoneEl) currentTimezoneEl.textContent = OFFICIAL_TIMEZONE;
+        infoDateGregorianEl.textContent = dateString;
+
+        updateNextPrayer(now);
+
+        const nowDateKey = getMalaysiaDateKey(now);
+        if (
+          lastFetchedDateKey &&
+          nowDateKey !== lastFetchedDateKey &&
+          !isFetchingTimes
+        ) {
+          getPrayerTimes();
+        }
+      }
+
+      updateTime();
+      clockInterval = setInterval(updateTime, 1000);
+    }
+
+    function formatTime(epochSeconds) {
+      if (!epochSeconds) return "--:--";
+      const d = new Date(epochSeconds * 1000);
+      return d.toLocaleTimeString("ms-MY", {
+        timeZone: "Asia/Kuala_Lumpur",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    }
+
+    function formatCountdown(ms) {
+      if (ms < 0) return "00:00:00";
+      let totalSeconds = Math.floor(ms / 1000);
+      let hours = Math.floor(totalSeconds / 3600);
+      totalSeconds %= 3600;
+      let minutes = Math.floor(totalSeconds / 60);
+      let seconds = totalSeconds % 60;
+      return (
+        String(hours).padStart(2, "0") +
+        ":" +
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(seconds).padStart(2, "0")
+      );
+    }
+
+    const prayerIcons = {
+      Subuh: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-9 h-9">
+          <path d="M4 16h16" />
+          <path d="M6 20h12" />
+          <path d="M12 5V3" />
+          <path d="M5 11l-1.5-1.5" />
+          <path d="M19 11l1.5-1.5" />
+          <path d="M8 16a4 4 0 0 1 8 0" />
+        </svg>
+      `,
+      Syuruk: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-9 h-9">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2" />
+          <path d="M12 20v2" />
+          <path d="m4.93 4.93 1.41 1.41" />
+          <path d="m17.66 17.66 1.41 1.41" />
+          <path d="M2 12h2" />
+          <path d="M20 12h2" />
+          <path d="m6.34 17.66-1.41 1.41" />
+          <path d="m19.07 4.93-1.41 1.41" />
+        </svg>
+      `,
+      Zohor: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-9 h-9">
+          <circle cx="12" cy="12" r="5" />
+          <path d="M3 12h2" />
+          <path d="M19 12h2" />
+          <path d="M12 3v2" />
+          <path d="M12 19v2" />
+        </svg>
+      `,
+      Asar: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-9 h-9">
+          <path d="M4 16h16" />
+          <path d="M6 20h12" />
+          <path d="M8 16a4 4 0 0 0 8 0" />
+          <path d="M6 8l3 3" />
+          <path d="M18 8l-3 3" />
+        </svg>
+      `,
+      Maghrib: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-9 h-9">
+          <path d="M2 20h20" />
+          <path d="M4 16h16" />
+          <path d="M9 12a5 5 0 0 0 7 4" />
+          <path d="M9 8a5 5 0 0 1 7-4" />
+        </svg>
+      `,
+      Isyak: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-9 h-9">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          <path d="M17 4v4" />
+          <path d="M19 6h-4" />
+        </svg>
+      `,
+      default: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-9 h-9">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      `,
+    };
+
+    function getMalaysiaDateKey(date = new Date()) {
+      return date.toLocaleDateString("en-CA", {
+        timeZone: "Asia/Kuala_Lumpur",
+      });
+    }
+
+    function updateZoneDetails() {
+      if (!zoneSelect || !selectedZoneNameEl) return;
+      const option = zoneSelect.options[zoneSelect.selectedIndex];
+      if (!option) return;
+
+      const optionText = option.text || zoneSelect.value;
+      selectedZoneNameEl.textContent = optionText;
+    }
+
+    function saveFavoriteZones() {
+      try {
+        localStorage.setItem("favoriteZones", JSON.stringify(favoriteZones));
+      } catch (err) {
+        console.error("Gagal menyimpan kegemaran:", err);
+      }
+    }
+
+    function loadFavoriteZones() {
+      try {
+        const saved = localStorage.getItem("favoriteZones");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            favoriteZones = parsed.slice(0, MAX_FAVORITES);
+          }
+        }
+      } catch (err) {
+        console.error("Gagal memuat kegemaran:", err);
+      }
+      renderFavoriteZones();
+    }
+
+    function renderFavoriteZones() {
+      if (!favoriteContainer || !favoriteEmptyEl) return;
+
+      favoriteContainer
+        .querySelectorAll(".favorite-item")
+        .forEach((el) => el.remove());
+
+      if (favoriteZones.length === 0) {
+        favoriteEmptyEl.classList.remove("hidden");
+      } else {
+        favoriteEmptyEl.classList.add("hidden");
+      }
+
+      favoriteZones.forEach((fav) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "favorite-item flex items-center gap-1";
+
+        const selectBtn = document.createElement("button");
+        selectBtn.type = "button";
+        selectBtn.className =
+          "px-3 py-1 rounded-full bg-sky-100 dark:bg-sky-900 text-sky-800 " +
+          "dark:text-sky-200 text-sm font-semibold hover:bg-sky-200 dark:hover:bg-sky-800 transition";
+        selectBtn.textContent = fav.label;
+        selectBtn.addEventListener("click", () => {
+          if (zoneSelect) {
+            zoneSelect.value = fav.zone;
+            getPrayerTimes();
+          }
+        });
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className =
+          "p-1 rounded-full text-slate-500 hover:text-red-500 transition";
+        removeBtn.setAttribute("aria-label", "Padam kegemaran");
+        removeBtn.innerHTML =
+          '<svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10M15 5L5 15"></path></svg>';
+        removeBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          favoriteZones = favoriteZones.filter((item) => item.zone !== fav.zone);
+          saveFavoriteZones();
+          renderFavoriteZones();
+        });
+
+        wrapper.appendChild(selectBtn);
+        wrapper.appendChild(removeBtn);
+        favoriteContainer.appendChild(wrapper);
+      });
+
+      if (addFavoriteBtn) {
+        addFavoriteBtn.disabled = favoriteZones.length >= MAX_FAVORITES;
+      }
+    }
+
+    // === PRAYER DISPLAY ===
+    function createPrayerCard(name, epoch) {
+      const card = document.createElement("div");
+      card.id = `card-${name.toLowerCase()}`;
+      card.className =
+        "p-3 rounded-lg border text-center transition-all " +
+        "bg-white border-slate-200 " +
+        "dark:bg-slate-900 dark:border-slate-700";
+
+      const iconMarkup = (prayerIcons[name] || prayerIcons.default).trim();
+
+      card.innerHTML = `
+        <div class="flex flex-col items-center gap-2">
+          <div class="text-sky-600 dark:text-sky-300">
+            ${iconMarkup}
+          </div>
+          <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">${name}</div>
+          <div class="text-xl font-bold text-slate-900 dark:text-slate-50">${formatTime(epoch)}</div>
+        </div>
+      `;
+      return card;
+    }
+
+    function updateNextPrayer(now) {
+      if (prayerTimesCache.length === 0) return;
+
+      const nowEpochMs = now.getTime();
+      let nextFound = false;
+      let currentPrayer = null;
+
+      // Find first prayer after now
+      for (const prayer of prayerTimesCache) {
+        const prayerEpochMs = prayer.epoch * 1000;
+        if (prayerEpochMs <= nowEpochMs) {
+          currentPrayer = prayer;
+        }
+        if (prayerEpochMs > nowEpochMs) {
+          nextPrayerTarget = prayerEpochMs;
+          nextPrayerNameEl.textContent = prayer.name;
+          nextPrayerTimeEl.textContent = "pada " + formatTime(prayer.epoch);
+
+          // Reset highlight
+          document.querySelectorAll("#results > div").forEach((card) => {
+            card.classList.remove(
+              "bg-sky-100",
+              "border-sky-600",
+              "dark:bg-sky-950",
+              "dark:border-sky-400"
+            );
+            card.classList.add("bg-white", "dark:bg-slate-900");
+          });
+          const nextCard = document.getElementById(
+            `card-${prayer.name.toLowerCase()}`
+          );
+          if (nextCard) {
+            nextCard.classList.add(
+              "bg-sky-100",
+              "border-sky-600",
+              "dark:bg-sky-950",
+              "dark:border-sky-400"
+            );
+          }
+
+          nextFound = true;
+          break;
+        }
+      }
+
+      // After Isyak: next is Subuh esok
+      if (!nextFound) {
+        const subuh = prayerTimesCache[0];
+        const lastPrayer = prayerTimesCache[prayerTimesCache.length - 1] || null;
+        const tomorrowSubuhMs = (subuh.epoch + 86400) * 1000;
+        nextPrayerTarget = tomorrowSubuhMs;
+        nextPrayerNameEl.textContent = subuh.name;
+        nextPrayerTimeEl.textContent = formatTime(subuh.epoch) + " (esok)";
+        currentPrayer = lastPrayer;
+
+        document.querySelectorAll("#results > div").forEach((card) => {
+          card.classList.remove(
+            "bg-sky-100",
+            "border-sky-600",
+            "dark:bg-sky-950",
+            "dark:border-sky-400"
+          );
+          card.classList.add("bg-white", "dark:bg-slate-900");
+        });
+        const subuhCard = document.getElementById(
+          `card-${subuh.name.toLowerCase()}`
+        );
+        if (subuhCard) {
+          subuhCard.classList.add(
+            "bg-sky-100",
+            "border-sky-600",
+            "dark:bg-sky-950",
+            "dark:border-sky-400"
+          );
+        }
+      }
+
+      if (currentPrayer) {
+        currentPrayerNameEl.textContent = currentPrayer.name;
+        currentPrayerTimeEl.textContent =
+          "bermula " + formatTime(currentPrayer.epoch);
+      } else {
+        currentPrayerNameEl.textContent = "Tiada Solat";
+        currentPrayerTimeEl.textContent = "Tiada solat sedang berlangsung.";
+      }
+
+      let formattedDiff = null;
+      if (nextPrayerTarget) {
+        const diff = nextPrayerTarget - nowEpochMs;
+        formattedDiff = formatCountdown(diff);
+        countdownEl.textContent = formattedDiff;
+        currentPrayerLeftEl.textContent = currentPrayer
+          ? formattedDiff
+          : "-:--:--";
+      } else {
+        countdownEl.textContent = "-:--:--";
+        currentPrayerLeftEl.textContent = "-:--:--";
+      }
+    }
+
+    async function getPrayerTimes() {
+      if (isFetchingTimes) return;
+      isFetchingTimes = true;
+
+      const zone = zoneSelect.value;
+      updateZoneDetails();
+
+      statusEl.textContent = "Memuatkan data waktu solat...";
+      statusEl.className =
+        "pb-4 text-sm text-center text-slate-600 dark:text-slate-300";
+      resultsEl.classList.add("hidden");
+      loadButton.disabled = true;
+      loadButton.innerHTML =
+        '<span class="spinner"></span><span class="ml-2">Memuatkan...</span>';
+
+      prayerTimesCache = [];
+      nextPrayerTarget = null;
+      nextPrayerNameEl.textContent = "-";
+      nextPrayerTimeEl.textContent = "";
+      countdownEl.textContent = "-:--:--";
+      currentPrayerNameEl.textContent = "-";
+      currentPrayerTimeEl.textContent = "";
+      currentPrayerLeftEl.textContent = "-:--:--";
+      infoZoneEl.textContent = "Memuatkan...";
+      infoDateHijriEl.textContent = "Memuatkan...";
+
+      try {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth() + 1;
+        const day = today.getDate();
+
+        const url = `https://mpt-server.vercel.app/api/v2/solat/${zone}?year=${year}&month=${month}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`Gagal memanggil API (Status ${response.status})`);
+        }
+
+        const data = await response.json();
+        const prayersArr = data.prayers || [];
+        const todayPrayer = prayersArr.find((p) => p.day === day);
+
+        if (!todayPrayer) {
+          throw new Error("Data untuk hari ini tidak ditemui dalam respons API.");
+        }
+
+        // Build display times
+        resultsEl.innerHTML = "";
+        const times = [
+          { name: "Subuh", epoch: todayPrayer.fajr },
+          { name: "Syuruk", epoch: todayPrayer.syuruk },
+          { name: "Zohor", epoch: todayPrayer.dhuhr },
+          { name: "Asar", epoch: todayPrayer.asr },
+          { name: "Maghrib", epoch: todayPrayer.maghrib },
+          { name: "Isyak", epoch: todayPrayer.isha },
+        ];
+
+        times.forEach((t) => {
+          resultsEl.appendChild(createPrayerCard(t.name, t.epoch));
+        });
+        resultsEl.classList.remove("hidden");
+
+        // Cache for next-prayer logic (exclude Syuruk)
+        prayerTimesCache = times.filter((t) =>
+          ["Subuh", "Zohor", "Asar", "Maghrib", "Isyak"].includes(t.name)
+        );
+
+        statusEl.textContent = `Waktu solat untuk ${data.zone} berjaya dimuatkan.`;
+        statusEl.className =
+          "pb-4 text-sm text-center text-emerald-700 dark:text-emerald-400";
+        infoZoneEl.textContent = data.zone;
+        infoDateHijriEl.textContent = todayPrayer.hijri || "-";
+        lastFetchedDateKey = getMalaysiaDateKey(today);
+
+        updateNextPrayer(today);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Ralat: " + err.message;
+        statusEl.className =
+          "pb-4 text-sm text-center text-red-600 dark:text-red-400";
+        resultsEl.classList.add("hidden");
+        nextPrayerNameEl.textContent = "Ralat";
+        nextPrayerTimeEl.textContent = "Sila cuba semula.";
+        countdownEl.textContent = "00:00:00";
+        currentPrayerNameEl.textContent = "Ralat";
+        currentPrayerTimeEl.textContent = "Sila cuba semula.";
+        currentPrayerLeftEl.textContent = "00:00:00";
+        infoZoneEl.textContent = "Ralat";
+        infoDateHijriEl.textContent = "-";
+      } finally {
+        isFetchingTimes = false;
+        loadButton.disabled = false;
+        loadButton.textContent = "Dapatkan Waktu Solat";
+      }
+    }
+
+    // === EVENTS ===
+    loadButton.addEventListener("click", getPrayerTimes);
+
+    if (zoneSelect) {
+      zoneSelect.addEventListener("change", () => {
+        updateZoneDetails();
+      });
+    }
+
+    if (addFavoriteBtn) {
+      addFavoriteBtn.addEventListener("click", () => {
+        if (!zoneSelect) return;
+        const zone = zoneSelect.value;
+        if (!zone) return;
+
+        if (favoriteZones.some((fav) => fav.zone === zone)) {
+          alert("Zon ini sudah berada dalam kegemaran anda.");
+          return;
+        }
+
+        if (favoriteZones.length >= MAX_FAVORITES) {
+          alert("Hanya tiga zon kegemaran dibenarkan.");
+          return;
+        }
+
+        const option = zoneSelect.options[zoneSelect.selectedIndex];
+        const label = option ? option.text : zone;
+        favoriteZones.push({ zone, label });
+        saveFavoriteZones();
+        renderFavoriteZones();
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      startClock();
+      loadFavoriteZones();
+      updateZoneDetails();
+      getPrayerTimes();
+    });
+  </script>
+</body>
+</html>
