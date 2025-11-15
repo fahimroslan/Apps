@@ -112,54 +112,90 @@
           </div>
 
           <!-- Next Prayer Card -->
-          <div class="rounded-xl shadow-lg bg-white dark:bg-slate-900 transition">
-            <div class="p-4 sm:p-6 space-y-4">
+          <div class="rounded-2xl shadow-lg bg-white dark:bg-slate-900 transition border border-slate-100/80 dark:border-slate-800">
+            <div class="p-4 sm:p-6">
               <div class="grid gap-4 sm:grid-cols-2">
-                <div class="text-center space-y-2">
-                  <p class="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 uppercase">
-                    Solat Kini
-                  </p>
-                  <h2 id="current-prayer-name" class="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
-                    -
-                  </h2>
-                  <p id="current-prayer-time" class="text-sm text-slate-600 dark:text-slate-300">
-                    &nbsp;
-                  </p>
-                  <div class="inline-flex flex-col items-center rounded-lg px-4 py-2 bg-emerald-100 dark:bg-sky-950">
-                    <span class="text-xs font-medium text-emerald-800 dark:text-sky-200">
-                      Masa Berlalu
-                    </span>
-                    <span id="current-prayer-left" class="text-2xl font-bold text-emerald-900 dark:text-sky-100">
-                      -:--:--
-                    </span>
-                  </div>
-                  <div class="space-y-1 text-left">
-                    <div class="text-xs font-medium text-slate-500 dark:text-slate-400">Progress Solat</div>
-                    <div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                      <div id="prayer-progress" class="h-full w-0 bg-gradient-to-r from-emerald-500 to-sky-500 transition-[width] duration-300"></div>
+
+                <!-- Current Prayer -->
+                <div class="relative overflow-hidden rounded-2xl border border-emerald-100/70 dark:border-emerald-900 bg-gradient-to-br from-emerald-50 via-white to-sky-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-4 sm:p-5 shadow-inner">
+                  <div class="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-500/10"></div>
+                  <div class="pointer-events-none absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-500/10"></div>
+
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                      <div class="h-10 w-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 6v6l3 2" />
+                          <circle cx="12" cy="12" r="9" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Solat Kini</p>
+                        <p id="current-prayer-time" class="text-xs text-slate-600 dark:text-slate-300">&nbsp;</p>
+                      </div>
                     </div>
-                    <div id="prayer-progress-text" class="text-xs text-slate-600 dark:text-slate-300">0%</div>
+                    <div class="text-right">
+                      <p class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Masa Berlalu</p>
+                      <p id="current-prayer-left" class="text-2xl font-bold text-emerald-700 dark:text-emerald-200">-:--:--</p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 space-y-2">
+                    <h2 id="current-prayer-name" class="text-3xl font-bold text-emerald-800 dark:text-emerald-200">
+                      -
+                    </h2>
+                    <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                      <span>Progress Solat</span>
+                      <span id="prayer-progress-text" class="font-semibold text-emerald-700 dark:text-emerald-300">0%</span>
+                    </div>
+                    <div class="h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden shadow-inner">
+                      <div id="prayer-progress" class="h-full w-0 bg-gradient-to-r from-emerald-500 via-sky-500 to-indigo-500 transition-[width] duration-300"></div>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Mengira dari mula solat kini hingga solat seterusnya.</p>
                   </div>
                 </div>
-                <div class="text-center space-y-2">
-                  <p class="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 uppercase">
-                    Solat Seterusnya
-                  </p>
-                  <h2 id="next-prayer-name" class="text-3xl font-bold text-sky-700 dark:text-sky-300">
-                    -
-                  </h2>
-                  <p id="next-prayer-time" class="text-sm text-slate-600 dark:text-slate-300">
-                    &nbsp;
-                  </p>
-                  <div class="inline-flex flex-col items-center rounded-lg px-4 py-2 bg-sky-100 dark:bg-sky-950">
-                    <span class="text-xs font-medium text-sky-800 dark:text-sky-200">
-                      Kiraan Masa
-                    </span>
-                    <span id="countdown" class="text-2xl font-bold text-sky-900 dark:text-sky-100">
-                      -:--:--
-                    </span>
+
+                <!-- Next Prayer -->
+                <div class="relative overflow-hidden rounded-2xl border border-sky-100/70 dark:border-sky-900 bg-gradient-to-br from-sky-50 via-white to-emerald-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 p-4 sm:p-5 shadow-inner">
+                  <div class="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-500/10"></div>
+                  <div class="pointer-events-none absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-500/10"></div>
+
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                      <div class="h-10 w-10 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow-lg shadow-sky-500/30">
+                        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 6v6l3 2" />
+                          <circle cx="12" cy="12" r="9" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Solat Seterusnya</p>
+                        <p class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Kiraan Masa</p>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-xs text-slate-600 dark:text-slate-300">Menuju</p>
+                      <p id="countdown" class="text-2xl font-bold text-sky-700 dark:text-sky-200">-:--:--</p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 space-y-2">
+                    <h2 id="next-prayer-name" class="text-3xl font-bold text-sky-800 dark:text-sky-200">
+                      -
+                    </h2>
+                    <p id="next-prayer-time" class="text-sm text-slate-600 dark:text-slate-300">
+                      &nbsp;
+                    </p>
+                    <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                      <span>Destinasi seterusnya</span>
+                      <span class="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 px-2 py-1 text-[11px] font-semibold dark:bg-sky-900 dark:text-sky-200">
+                        <span class="h-2 w-2 rounded-full bg-sky-500 animate-pulse"></span>
+                        Aktif
+                      </span>
+                    </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
