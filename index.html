@@ -62,22 +62,28 @@
             <h1 class="text-3xl font-bold text-sky-800 dark:text-sky-300">
               Waktu Solat Malaysia
             </h1>
-            <p
-              class="text-sm sm:text-base text-slate-700 dark:text-slate-200 flex flex-wrap items-center gap-3"
-            >
-              <span id="current-time" class="font-semibold">
-                Memuatkan masa semasa...
-              </span>
-              <span id="current-date" class="text-slate-600 dark:text-slate-300">
-                Memuatkan tarikh...
-              </span>
-              <span
-                id="current-timezone"
-                class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
-              >
-                MYT (UTC+08:00)
-              </span>
-            </p>
+            <div class="mt-1 space-y-1">
+              <div class="flex items-baseline gap-3">
+                <span
+                  id="current-time"
+                  class="text-3xl font-semibold font-mono tracking-[0.25em] text-slate-900/90 dark:text-slate-100/90"
+                  style="letter-spacing: 0.25em;"
+                >
+                  --:--:--
+                </span>
+              </div>
+              <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-2">
+                <span id="current-date">
+                  Memuatkan tarikh...
+                </span>
+                <span
+                  id="current-timezone"
+                  class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  MYT (UTC+08:00)
+                </span>
+              </p>
+            </div>
           </div>
         </div>
 
