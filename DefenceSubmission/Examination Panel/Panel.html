@@ -1453,15 +1453,12 @@
 <body>
 
   <!-- =========================================================
-       0. SERVER DIRECT ACCESS INJECTION
+       0. SERVER DIRECT ACCESS INJECTION (SAFE HTML DATA ATTRIBUTES)
        ========================================================= -->
-  <script>
-    window.SERVER_DIRECT_ACCESS = {
-      caseId: <?= JSON.stringify(directCase || '') ?>,
-      token: <?= JSON.stringify(directToken || '') ?>,
-      slot: <?= JSON.stringify(directSlot || '') ?>
-    };
-  </script>
+  <div id="serverDirectConfig" style="display:none;"
+       data-case="<?= directCase ?>"
+       data-token="<?= directToken ?>"
+       data-slot="<?= directSlot ?>"></div>
 
   <!-- =========================================================
        0.1 EXTERNAL EXAMINER DIRECT PORTAL (ONE-CLICK ACCESS)
@@ -3104,10 +3101,20 @@
 
     let extSelectedFile = null;
 
+    function getServerDirectAccess_() {
+      const el = $('serverDirectConfig');
+      return {
+        caseId: (el && el.getAttribute('data-case')) ? el.getAttribute('data-case').trim() : '',
+        token: (el && el.getAttribute('data-token')) ? el.getAttribute('data-token').trim() : '',
+        slot: (el && el.getAttribute('data-slot')) ? el.getAttribute('data-slot').trim() : ''
+      };
+    }
+
     function checkDirectAccessOnInit() {
-      let caseId = (window.SERVER_DIRECT_ACCESS && window.SERVER_DIRECT_ACCESS.caseId) || '';
-      let token = (window.SERVER_DIRECT_ACCESS && window.SERVER_DIRECT_ACCESS.token) || '';
-      let slot = (window.SERVER_DIRECT_ACCESS && window.SERVER_DIRECT_ACCESS.slot) || '';
+      const serverCfg = getServerDirectAccess_();
+      let caseId = serverCfg.caseId;
+      let token = serverCfg.token;
+      let slot = serverCfg.slot;
 
       if (!caseId || !token) {
         try {
