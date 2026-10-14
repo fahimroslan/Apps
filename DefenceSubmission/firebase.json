@@ -1,0 +1,65 @@
+{
+  "hosting": {
+    "public": "firebase-app/public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate, max-age=0"
+          },
+          {
+            "key": "Pragma",
+            "value": "no-cache"
+          },
+          {
+            "key": "Expires",
+            "value": "0"
+          }
+        ]
+      }
+    ],
+    "redirects": [
+      {
+        "source": "/admin",
+        "destination": "https://script.google.com/macros/s/AKfycbwD4iAI0lvOjcFt-gBpP0n-mhFw2TUVceppIftUOI_sAKp7WBp8auy4gQ12mC8Jo7Iq/exec",
+        "type": 302
+      },
+      {
+        "source": "/admin/**",
+        "destination": "https://script.google.com/macros/s/AKfycbwD4iAI0lvOjcFt-gBpP0n-mhFw2TUVceppIftUOI_sAKp7WBp8auy4gQ12mC8Jo7Iq/exec",
+        "type": 302
+      },
+      {
+        "source": "/examiner",
+        "destination": "https://script.google.com/macros/s/AKfycbww2UZcF2dDskUv0H_I6vcorINaJGlVk-Zm6PD948MVJ4NWVor8PNvtOEbLhwtMnnCv/exec",
+        "type": 302
+      },
+      {
+        "source": "/examiner/**",
+        "destination": "https://script.google.com/macros/s/AKfycbww2UZcF2dDskUv0H_I6vcorINaJGlVk-Zm6PD948MVJ4NWVor8PNvtOEbLhwtMnnCv/exec",
+        "type": 302
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/student",
+        "destination": "/student.html"
+      },
+      {
+        "source": "/student/**",
+        "destination": "/student.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
