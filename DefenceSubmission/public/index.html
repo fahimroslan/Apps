@@ -563,7 +563,7 @@
         <div class="login-group">
           <!-- 1. EXAMINER / SUPERVISORY -->
           <div class="login-btn-row">
-            <button type="button" class="btn-portal-card card-supervisory" onclick="navigateTo('supervisory')">
+            <a href="https://script.google.com/macros/s/AKfycbww2UZcF2dDskUv0H_I6vcorINaJGlVk-Zm6PD948MVJ4NWVor8PNvtOEbLhwtMnnCv/exec" class="btn-portal-card card-supervisory">
               <div class="btn-portal-icon">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
               </div>
@@ -572,7 +572,7 @@
                 <span class="btn-portal-sub">Supervisors, Chairpersons &amp; Examiners</span>
               </div>
               <span class="btn-portal-arrow">&rarr;</span>
-            </button>
+            </a>
             <a href="https://script.google.com/macros/s/AKfycbww2UZcF2dDskUv0H_I6vcorINaJGlVk-Zm6PD948MVJ4NWVor8PNvtOEbLhwtMnnCv/exec" 
                target="_blank" 
                rel="noopener noreferrer" 
@@ -582,7 +582,7 @@
 
           <!-- 2. ADMIN REGISTRY -->
           <div class="login-btn-row">
-            <button type="button" class="btn-portal-card card-admin" onclick="navigateTo('admin')">
+            <a href="https://script.google.com/macros/s/AKfycbwD4iAI0lvOjcFt-gBpP0n-mhFw2TUVceppIftUOI_sAKp7WBp8auy4gQ12mC8Jo7Iq/exec" class="btn-portal-card card-admin">
               <div class="btn-portal-icon">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
               </div>
@@ -591,7 +591,7 @@
                 <span class="btn-portal-sub">IPGS Officers &amp; Registry Staff</span>
               </div>
               <span class="btn-portal-arrow">&rarr;</span>
-            </button>
+            </a>
             <a href="https://script.google.com/macros/s/AKfycbwD4iAI0lvOjcFt-gBpP0n-mhFw2TUVceppIftUOI_sAKp7WBp8auy4gQ12mC8Jo7Iq/exec" 
                target="_blank" 
                rel="noopener noreferrer" 
@@ -683,100 +683,36 @@
     let frameLoadingTimer = null;
 
     function navigateTo(section) {
-      // If student was requested via hash, redirect to dedicated student page
       if (section === 'student') {
         window.location.href = '/student';
         return;
       }
 
-      currentSection = section;
-      const hubView = document.getElementById('hubView');
-      const frameView = document.getElementById('frameView');
-      const frameLoading = document.getElementById('frameLoading');
-      const frameLoadingFallback = document.getElementById('frameLoadingFallback');
-      const btnFallbackDirect = document.getElementById('btnFallbackDirect');
-      const floatingSwitcher = document.getElementById('floatingSwitcher');
-      const dockBtnSupervisory = document.getElementById('dockBtnSupervisory');
-      const dockBtnAdmin = document.getElementById('dockBtnAdmin');
-      const dockDirectLink = document.getElementById('dockDirectLink');
-
-      if (frameLoadingTimer) {
-        clearTimeout(frameLoadingTimer);
-        frameLoadingTimer = null;
-      }
-      if (frameLoadingFallback) frameLoadingFallback.style.display = 'none';
-
-      if (section === 'hub') {
-        window.location.hash = 'hub';
-        document.title = 'Staff & Faculty Portal — Research Management System';
-        if (floatingSwitcher) floatingSwitcher.style.display = 'none';
-        hubView.style.display = 'grid';
-        frameView.style.display = 'none';
-        document.body.style.overflow = 'auto';
-        
-        // Hide all iframes
-        ['frameSupervisory', 'frameAdmin'].forEach(id => {
-          const f = document.getElementById(id);
-          if (f) f.style.display = 'none';
-        });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (PORTALS[section]) {
-        const portal = PORTALS[section];
-        window.location.hash = section;
-        document.title = portal.title;
-        
-        hubView.style.display = 'none';
-        frameView.style.display = 'block';
-        document.body.style.overflow = 'hidden';
-
-        // Forward query params if provided
+      if (PORTALS[section]) {
         let searchParams = window.location.search || '';
         if (!searchParams && window.location.hash.includes('?')) {
           searchParams = '?' + window.location.hash.split('?')[1];
         }
-        let targetUrl = portal.url;
+        let targetUrl = PORTALS[section].url;
         if (searchParams) {
           targetUrl += (targetUrl.includes('?') ? '&' : '?') + searchParams.replace(/^\?/, '');
         }
-
-        if (floatingSwitcher) {
-          floatingSwitcher.style.display = 'flex';
-          if (dockBtnSupervisory) dockBtnSupervisory.classList.toggle('active', section === 'supervisory');
-          if (dockBtnAdmin) dockBtnAdmin.classList.toggle('active', section === 'admin');
-          if (dockDirectLink) dockDirectLink.href = targetUrl;
-        }
-        if (btnFallbackDirect) btnFallbackDirect.href = targetUrl;
-
-        // Hide other iframes and show the target iframe
-        ['frameSupervisory', 'frameAdmin'].forEach(id => {
-          const f = document.getElementById(id);
-          if (f) {
-            f.style.display = (id === portal.frameId) ? 'block' : 'none';
-          }
-        });
-
-        const activeFrame = document.getElementById(portal.frameId);
-        if (activeFrame) {
-          // Lazy load on first activation or if targetUrl changed
-          if (!activeFrame.src || activeFrame.src === 'about:blank' || activeFrame.src === window.location.href || activeFrame.dataset.loadedUrl !== targetUrl) {
-            frameLoading.style.display = 'flex';
-            activeFrame.dataset.loadedUrl = targetUrl;
-            activeFrame.src = targetUrl;
-
-            // Show direct fallback button if iframe takes longer than 4.5 seconds
-            frameLoadingTimer = setTimeout(() => {
-              if (frameLoadingFallback) frameLoadingFallback.style.display = 'block';
-            }, 4500);
-
-            activeFrame.onload = function() {
-              if (frameLoadingTimer) clearTimeout(frameLoadingTimer);
-              frameLoading.style.display = 'none';
-            };
-          } else {
-            frameLoading.style.display = 'none';
-          }
-        }
+        window.location.href = targetUrl;
+        return;
       }
+
+      currentSection = 'hub';
+      const hubView = document.getElementById('hubView');
+      const frameView = document.getElementById('frameView');
+      const floatingSwitcher = document.getElementById('floatingSwitcher');
+
+      window.location.hash = 'hub';
+      document.title = 'Staff & Faculty Portal — Research Management System';
+      if (floatingSwitcher) floatingSwitcher.style.display = 'none';
+      if (hubView) hubView.style.display = 'grid';
+      if (frameView) frameView.style.display = 'none';
+      document.body.style.overflow = 'auto';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     // Initialize based on URL hash
@@ -787,11 +723,23 @@
         window.location.href = '/student';
         return;
       }
-      if (PORTALS[hash]) {
-        navigateTo(hash);
-      } else {
-        navigateTo('hub');
+      if (hash === 'supervisory' || hash === 'examiner') {
+        let searchParams = window.location.search || '';
+        if (!searchParams && window.location.hash.includes('?')) {
+          searchParams = '?' + window.location.hash.split('?')[1];
+        }
+        let targetUrl = PORTALS.supervisory.url;
+        if (searchParams) {
+          targetUrl += (targetUrl.includes('?') ? '&' : '?') + searchParams.replace(/^\?/, '');
+        }
+        window.location.replace(targetUrl);
+        return;
       }
+      if (hash === 'admin') {
+        window.location.replace(PORTALS.admin.url);
+        return;
+      }
+      navigateTo('hub');
     }
 
     window.addEventListener('DOMContentLoaded', handleInitialNav);
@@ -804,12 +752,24 @@
         window.location.href = '/student';
         return;
       }
-      if (hash !== currentSection) {
-        if (PORTALS[hash]) {
-          navigateTo(hash);
-        } else {
-          navigateTo('hub');
+      if (hash === 'supervisory' || hash === 'examiner') {
+        let searchParams = window.location.search || '';
+        if (!searchParams && window.location.hash.includes('?')) {
+          searchParams = '?' + window.location.hash.split('?')[1];
         }
+        let targetUrl = PORTALS.supervisory.url;
+        if (searchParams) {
+          targetUrl += (targetUrl.includes('?') ? '&' : '?') + searchParams.replace(/^\?/, '');
+        }
+        window.location.replace(targetUrl);
+        return;
+      }
+      if (hash === 'admin') {
+        window.location.replace(PORTALS.admin.url);
+        return;
+      }
+      if (hash !== currentSection) {
+        navigateTo('hub');
       }
     });
   </script>
