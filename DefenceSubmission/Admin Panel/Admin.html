@@ -4107,7 +4107,7 @@ var DEFAULT_TEMPLATES = {
 var groups={details:{label:'Student details',title:'Student details',description:'Programme, research title and supervision information.',fields:[['Case ID','readonly'],['Case Status','readonly'],['Student Name','text'],['Student Email','email'],['Programme','text'],['Progression Route','select:progressionRoute'],['Defence Type','select:defenceType'],['Research Title','textarea:wide'],['Supervisor','supervisor'],['Supervisor Email','email'],['Submission Enabled','select:submissionEnabled'],['Notes','textarea:wide']]},schedule:{label:'Session scheduling',title:'Session scheduling',description:'Set the defence date, time and location, then schedule the calendar event and send panel invitations.',fields:[['Session Date','date'],['Start Time','time'],['End Time','time'],['Venue','text:two'],['Google Meet Link','url'],['Additional Invitees','text:wide'],['Session Status','select:sessionStatus'],['Calendar Invitation Status','readonly'],['Invitation Email Status','readonly'],['Invitation Email Sent At','readonly']]},panels:{label:'Panel assignment',title:'Panel assignment',description:'Assign the chairperson and both examiners. Their saved email addresses will be used for calendar RSVP and invitation emails.',fields:[['Chairperson','chair'],['Chair Email','email'],['Examiner 1','examiner'],['Examiner 1 Role','select:panelRole'],['Examiner 1 Email','email'],['Examiner 2','examiner'],['Examiner 2 Role','select:panelRole'],['Examiner 2 Email','email']]},documents:{label:'Document record',title:'Document record',description:'Student drafts, appointment letters, examiner forms, reports and final submissions.',fields:[['Draft File Name','text:two'],['Student Draft Link','url:two'],['Candidate Notice Letter Link','readonly:two'],['Submission Portal Link','readonly:two'],['Student Folder ID','readonly'],['Chair Appointment Letter Link','readonly:two'],['Examiner 1 Appointment Letter Link','readonly:two'],['Examiner 2 Appointment Letter Link','readonly:two'],['Examiner 1 Form Link','readonly:two'],['Examiner 2 Form Link','readonly'],['Examiner 1 Report Link','readonly:two'],['Examiner 1 Report Status','readonly'],['Examiner 2 Report Link','readonly:two'],['Examiner 2 Report Status','readonly'],['Panel Report Updated At','readonly'],['Examiner Report File','url:wide'],['Final Thesis Link','url:two'],['Correction Matrix Link','url']]},result:{label:'Result',title:'Result and final submission',description:'Decision, corrections and final-submission progress.',fields:[['Result Scale','readonly:two'],['Result Status','readonly:wide'],['Corrections Deadline','readonly'],['Final Submission Status','select:finalSubmissionStatus'],['Final Submission Due','readonly:two'],['Final Submission Received','date'],['Endorsed By','text'],['Endorsement Status','select:endorsementStatus'],['Final Verification Date','date'],['Result Email Status','select:resultEmailStatus'],['Result Email Sent At','readonly']]}};
 
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}function idFor(h){return'f_'+h.replace(/[^a-z0-9]/gi,'_');}function hasDraft(){return Boolean(String(state.record['Student Draft Link']||'').trim());}
-function caseCloseState(){function received(slot){var link=String(state.record[slot+' Report Link']||'').trim(),status=String(state.record[slot+' Report Status']||'').trim().toLowerCase();return Boolean(link)&&['submitted','received','uploaded','complete','completed'].indexOf(status)>=0;}var r1=received('Examiner 1'),r2=received('Examiner 2'),email=String(state.record['Result Email Status']||'').trim().toLowerCase()==='sent'&&Boolean(String(state.record['Result Email Sent At']||'').trim());return{ready:r1&&r2&&email,report1:r1,report2:r2,outcomeEmail:email};}
+function caseCloseState(){function received(slot){var link=String(state.record[slot+' Report Link']||'').trim();var status=String(state.record[slot+' Report Status']||'').trim().toLowerCase();var hasDirectLink=Boolean(link&&/^https?:\/\//i.test(link));var isStatusSubmitted=['submitted','received','uploaded','complete','completed','verified'].indexOf(status)>=0;var isStatusPending=['pending','awaiting submission','not submitted','unsubmitted'].indexOf(status)>=0;var isPendingStatus=isStatusPending;if(hasDirectLink&&!isStatusPending)return true;if(isStatusSubmitted)return true;var panel=String(state.record['Examiner Report File']||'').trim();if(panel){if(/Examiner\s*[12]/i.test(panel)){var m=panel.match(new RegExp(slot+':[^\\r\\n]*?(https?:\\/\\/[^\\s\\r\\n]+)','i'));if(m&&m[1])return true;}else if(/^https?:\/\//i.test(panel)&&!isStatusPending){return true;}}return false;}var r1=received('Examiner 1'),r2=received('Examiner 2'),hasEx2=Boolean(String(state.record['Examiner 2']||state.record['Examiner 2 Email']||'').trim()),reportsOk=r1&&(hasEx2?r2:true),email=String(state.record['Result Email Status']||'').trim().toLowerCase()==='sent'&&Boolean(String(state.record['Result Email Sent At']||'').trim());return{ready:reportsOk&&email,report1:r1,report2:r2,outcomeEmail:email};}
 function lifecycleCheck(label,ok){
   var icon = ok ? 
     '<svg class="ui-icon" style="width:12px;height:12px;stroke:var(--emerald-700);stroke-width:2.5;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>' : 
@@ -4742,7 +4742,7 @@ function sessionHtml(){
 function resultHtml(){
   var c = caseCloseState(), r = state.record;
   var caseId = r['Case ID'] || state.currentId || '';
-  var hasResult = Boolean(String(r['Result Status'] || '').trim() && String(r['Result Scale'] || '').trim());
+  var hasResult = Boolean((String(r['Result Status'] || '').trim() || (String(r['Result Scale'] || '').trim() && r['Result Scale'] !== 'Not recorded')) && String(r['Result Scale'] || '').trim() && r['Result Scale'] !== 'Not recorded');
   var emailSent = normaliseStatus(r['Result Email Status']) === 'sent';
   var hasExaminer2 = Boolean(String(r['Examiner 2'] || r['Examiner 2 Email'] || '').trim());
   var reportsReceived = c.report1 && (hasExaminer2 ? c.report2 : true);
@@ -5345,7 +5345,7 @@ function renderWorkspace(){
   document.querySelectorAll('#panelHost [data-header]').forEach(function(el){var h=el.dataset.header;el.dataset.renderValue=fieldValue(el);el.dataset.hadValue=Object.prototype.hasOwnProperty.call(state.record,h)?'1':'0';el.dataset.recordValue=state.record[h]||'';el.addEventListener('input',function(){if(el.type==='checkbox'){el.dataset.recordValue=fieldValue(el);el.dataset.hadValue='1';}snapshotFields();updateSaveBar();});el.addEventListener('change',function(){if(el.type==='checkbox'){el.dataset.recordValue=fieldValue(el);el.dataset.hadValue='1';}snapshotFields();updateSaveBar();});});
   if(readOnlyStage())document.querySelectorAll('#panelHost input,#panelHost select,#panelHost textarea,#panelHost [data-server-action]').forEach(function(el){el.disabled=true;});
   var edit=document.getElementById('editClosedButton');if(edit)edit.onclick=function(){if(state.busy)return;if(state.editClosed&&isDirty()){showNotice('Save or discard your corrections before finishing.','error');return;}state.editClosed=!state.editClosed;renderWorkspace();};
-  var resend=document.getElementById('resendOutcome');if(resend){resend.disabled=readOnlyStage();resend.onclick=function(){if(state.busy||readOnlyStage())return;state.record._resendConfirmed=true;openActionReview('resultEmail',state.currentId);};}
+  var resend=document.getElementById('resendOutcome');if(resend){resend.disabled=readOnlyStage();resend.onclick=function(){if(state.busy||readOnlyStage())return;setBusy(true);google.script.run.withSuccessHandler(function(r){setBusy(false);var scaleMap={'Scale 1':'Unconditional pass','Scale 2':'Conditional pass with minor corrections','Scale 3':'Conditional pass with major corrections','Scale 4':'Re-examination','Scale 5':'Fail'};if(!r['Result Status']&&r['Result Scale']&&scaleMap[r['Result Scale']]) r['Result Status']=scaleMap[r['Result Scale']];state.record=cloneRecord(r);savedRecord=cloneRecord(r);state.record._resendConfirmed=true;renderWorkspace();openActionReview('resultEmail',state.currentId);}).withFailureHandler(showError).getAdminCase(state.currentId);};}
   updateSaveBar();
 }
 function renderForm(record,isNew,tab){
@@ -5390,7 +5390,19 @@ function applyAction(r){state.cases=r.cases||state.cases;state.students=r.studen
 function runCaseAction(action,b){
   if(state.busy||b.disabled||readOnlyStage())return;
   afterSave(function(saved){
-    if(action==='resultEmail'){openActionReview(action,saved.caseId);return;}
+    if(action==='resultEmail'){
+      setBusy(true);
+      google.script.run.withSuccessHandler(function(r){
+        setBusy(false);
+        var scaleMap={'Scale 1':'Unconditional pass','Scale 2':'Conditional pass with minor corrections','Scale 3':'Conditional pass with major corrections','Scale 4':'Re-examination','Scale 5':'Fail'};
+        if(!r['Result Status']&&r['Result Scale']&&scaleMap[r['Result Scale']]) r['Result Status']=scaleMap[r['Result Scale']];
+        state.record=cloneRecord(r);
+        savedRecord=cloneRecord(r);
+        renderWorkspace();
+        openActionReview(action,saved.caseId);
+      }).withFailureHandler(showError).getAdminCase(saved.caseId);
+      return;
+    }
     setBusy(true);google.script.run.withSuccessHandler(function(r){setBusy(false);state.record=cloneRecord(r.caseData);savedRecord=cloneRecord(r.caseData);renderWorkspace();openActionReview(action,saved.caseId,r.calendarReview);}).withFailureHandler(showError).getAdminCalendarReview(saved.caseId);
   });
 }
@@ -5492,6 +5504,10 @@ function previewLetter(caseId, slot) {
       if (r && r.caseData) {
         state.record = Object.assign({}, state.record, r.caseData);
         savedRecord = Object.assign({}, savedRecord, r.caseData);
+        if (r.caseData._revision) {
+          state.record._revision = r.caseData._revision;
+          savedRecord._revision = r.caseData._revision;
+        }
         if (state.activeTab === 'documents') renderWorkspace();
       }
       var roleTitle = (r.recipient && r.recipient.role) || slot || 'Panel Member';
@@ -5575,6 +5591,10 @@ function previewResultConfirmationLetter(caseId) {
       if (r && r.caseData) {
         state.record = Object.assign({}, state.record, r.caseData);
         savedRecord = Object.assign({}, savedRecord, r.caseData);
+        if (r.caseData._revision) {
+          state.record._revision = r.caseData._revision;
+          savedRecord._revision = r.caseData._revision;
+        }
         if (state.activeTab === 'documents') renderWorkspace();
       }
       var subText = 'Candidate: ' + (r.studentName || 'Candidate') + ' (Case ID: ' + (r.caseId || targetCaseId) + ')';
@@ -5600,6 +5620,10 @@ function previewCandidateInvitationLetter(caseId) {
       if (r && r.caseData) {
         state.record = Object.assign({}, state.record, r.caseData);
         savedRecord = Object.assign({}, savedRecord, r.caseData);
+        if (r.caseData._revision) {
+          state.record._revision = r.caseData._revision;
+          savedRecord._revision = r.caseData._revision;
+        }
         if (state.activeTab === 'documents') renderWorkspace();
       }
       var recText = 'Candidate: ' + (r.studentName || 'Candidate') + ' (' + (r.studentEmail || (state.record && state.record['Student Email']) || 'No email') + ')';
@@ -5735,6 +5759,10 @@ function previewAllOutboundLetters(caseId) {
       if (r && r.caseData) {
         state.record = Object.assign({}, state.record, r.caseData);
         savedRecord = Object.assign({}, savedRecord, r.caseData);
+        if (r.caseData._revision) {
+          state.record._revision = r.caseData._revision;
+          savedRecord._revision = r.caseData._revision;
+        }
         if (state.activeTab === 'documents') renderWorkspace();
       }
       if (r && r.letters && r.letters.length) {
@@ -6364,6 +6392,13 @@ function confirmBulkRegistration() {
 
 function openActionReview(action,caseId,calendarReview){
   var r=state.record;
+  if(action==='resultEmail'){
+    var scaleMap={'Scale 1':'Unconditional pass','Scale 2':'Conditional pass with minor corrections','Scale 3':'Conditional pass with major corrections','Scale 4':'Re-examination','Scale 5':'Fail'};
+    if(!r['Result Status']&&r['Result Scale']&&scaleMap[r['Result Scale']]){
+      r['Result Status']=scaleMap[r['Result Scale']];
+      if(state.record) state.record['Result Status']=scaleMap[r['Result Scale']];
+    }
+  }
   if ((action === 'resultEmail' || action === 'candidateEmail') && !String(r['Student Email'] || '').trim()) {
     showNotice('Student email is missing for this candidate. Please enter the email under "Student details" and save.', 'error');
     goSection('profile');
@@ -6377,7 +6412,7 @@ function openActionReview(action,caseId,calendarReview){
     ['Primary Recipient', (r['Student Name'] || 'Candidate') + ' (' + (r['Student Email'] || 'No email') + ')'],
     ['CC Recipient', (r['Supervisor'] ? (r['Supervisor'] + ' (' + (r['Supervisor Email'] || 'No email') + ')') : (r['Supervisor Email'] || 'None recorded'))],
     ['Attached Documents', '1. Official Confirmation Letter of Result (PDF)\n2. Examiner 1 Evaluation Report\n3. Examiner 2 Evaluation Report'],
-    ['Outcome Decision', r['Result Status'] || 'Not recorded'],
+    ['Outcome Decision', r['Result Status'] || ({'Scale 1':'Unconditional pass','Scale 2':'Conditional pass with minor corrections','Scale 3':'Conditional pass with major corrections','Scale 4':'Re-examination','Scale 5':'Fail'}[r['Result Scale']]) || 'Not recorded'],
     ['Result Scale', r['Result Scale'] || 'Not recorded'],
     ['Corrections Deadline', r['Corrections Deadline'] || 'None set / Not applicable']
   ]:action==='candidateEmail'?[
@@ -6456,7 +6491,7 @@ function openActionReview(action,caseId,calendarReview){
     }
   }
   document.getElementById('reviewBody').innerHTML=calendarDetails+emailPreviewHtml+'<p>This action uses the saved stage details below.</p><dl class="review-details"><dt>Candidate</dt><dd>'+esc(r['Student Name'])+'</dd><dt>Recipients</dt><dd>'+esc(recipients.join(', ')||'No recipients recorded')+'</dd>'+(ccList.length?'<dt>CC / Additional invitees</dt><dd>'+esc(ccList.join(', '))+'</dd>':'')+'<dt>Defence stage</dt><dd>'+esc(r['Defence Type'])+'</dd><dt>Research title</dt><dd>'+esc(r['Research Title'])+'</dd>'+pairs.map(function(p){return '<dt>'+esc(p[0])+'</dt><dd>'+(p[0]==='Venue / Meeting Link'&&p[1]&&p[1].indexOf('http')===0?documentLink(p[1],'Open meeting link'):p[0]==='Meeting link'&&p[1]?documentLink(p[1],'Open meeting'):esc(p[1]||'Not recorded'))+'</dd>';}).join('')+'</dl>'+(action!=='resultEmail'?'<p>'+documentLink(r['Student Draft Link'],'Open attached draft link')+'</p>':'')+'<p class="hint">'+(action==='schedule'?'Creates or updates the calendar event and invites participants.':'Sends an email immediately. Review the recipients carefully.')+'</p>';
-  var dialog=document.getElementById('actionReview'),confirm=document.getElementById('confirmAction');confirm.textContent=action==='schedule'?'Schedule and invite':'Send email';confirm.onclick=function(){dialog.close();setBusy(true);snapshotFields();var method={schedule:'scheduleAdminCase',invite:'sendPanelInvitations',candidateEmail:'sendCandidateInvitationEmail',resultEmail:'sendResultOutcomeEmail'}[action];google.script.run.withSuccessHandler(applyAction).withFailureHandler(showError)[method](caseId,cloneRecord(state.record));};dialog.showModal();
+  var dialog=document.getElementById('actionReview'),confirm=document.getElementById('confirmAction');confirm.textContent=action==='schedule'?'Schedule and invite':'Send email';confirm.onclick=function(){dialog.close();setBusy(true);snapshotFields();if(action==='resultEmail'&&!state.record['Result Status']&&state.record['Result Scale']){var sm={'Scale 1':'Unconditional pass','Scale 2':'Conditional pass with minor corrections','Scale 3':'Conditional pass with major corrections','Scale 4':'Re-examination','Scale 5':'Fail'};if(sm[state.record['Result Scale']])state.record['Result Status']=sm[state.record['Result Scale']];}var method={schedule:'scheduleAdminCase',invite:'sendPanelInvitations',candidateEmail:'sendCandidateInvitationEmail',resultEmail:'sendResultOutcomeEmail'}[action];google.script.run.withSuccessHandler(applyAction).withFailureHandler(showError)[method](caseId,cloneRecord(state.record));};dialog.showModal();
 }
 function runLifecycleAction(target,b){
   if(state.busy||b.disabled)return;
@@ -6943,12 +6978,20 @@ function progressStageForCase(item) {
   var isClosed = (item.caseStatus || '').toLowerCase() === 'closed';
   var hasDraft = Boolean(item.hasDraft);
   var hasReport1 = Boolean(item.hasReport1);
-  var hasReport2 = Boolean(item.hasReport2);
+  var hasEx2 = Boolean(item.examiner2);
+  var hasReport2 = hasEx2 ? Boolean(item.hasReport2) : true;
   var bothReports = hasReport1 && hasReport2;
   var outcomeSent = Boolean(item.outcomeEmailSent);
   var sessionStatus = (item.sessionStatus || '').toLowerCase();
-  var isScheduled = sessionStatus === 'scheduled' || Boolean(item.sessionDate);
-  var hasPanel = Boolean(item.chairperson && item.examiner1 && item.examiner2);
+  
+  var hasChair = Boolean(item.chairperson);
+  var hasEx1 = Boolean(item.examiner1);
+  var panelAppointed = hasChair && hasEx1 && (hasEx2 ? Boolean(item.examiner2) : true);
+  var sessionScheduled = Boolean(item.sessionDate && item.startTime && item.endTime);
+
+  var hasVerdict = Boolean(item.resultScale && item.resultScale !== 'Not recorded');
+  var sessionConducted = ['completed', 'held', 'passed', 'conducted'].indexOf(sessionStatus) >= 0 || hasVerdict;
+
   var finalStatus = (item.finalSubmissionStatus || '').toLowerCase();
   var endorsement = (item.endorsementStatus || '').toLowerCase();
   var isEndorsed = endorsement === 'endorsed';
@@ -6956,8 +6999,8 @@ function progressStageForCase(item) {
 
   var checks = {
     draft: hasDraft,
-    panel: hasPanel,
-    reports: bothReports ? '2/2' : (hasReport1 || hasReport2 ? '1/2' : '0/2'),
+    panel: panelAppointed,
+    reports: bothReports ? '2/2' : (hasReport1 || (hasEx2 && item.hasReport2) ? '1/2' : '0/2'),
     outcomeNotice: outcomeSent,
     endorsement: isEndorsed
   };
@@ -6975,35 +7018,64 @@ function progressStageForCase(item) {
     };
   }
 
-  // 7. Ready to Close
-  if (bothReports && outcomeSent && finalDone) {
+  // 1. Awaiting Draft
+  if (!hasDraft) {
     return {
-      key: 'ready_to_close',
-      label: 'Ready to Close',
-      badgeClass: 'milestone-ready',
-      deepTab: 'result',
-      actionLabel: 'Verify & Close',
-      bottleneck: 'Reports received & outcome sent. Ready for final verification and closure.',
+      key: 'awaiting_draft',
+      label: 'Awaiting Draft',
+      badgeClass: 'milestone-draft',
+      deepTab: 'documents',
+      actionLabel: 'Check Submission',
+      bottleneck: item.submissionEnabled === 'No' ? 'Student draft portal disabled' : 'Awaiting candidate draft submission',
       checks: checks
     };
   }
 
-  // 6. Corrections in Progress
-  if (outcomeSent) {
-    var dueText = item.correctionsDeadline ? ' (Due: ' + item.correctionsDeadline + ')' : '';
+  // 2. Panel & Scheduling (draft uploaded, but panel not appointed or session not scheduled)
+  if (!panelAppointed || !sessionScheduled) {
+    var schedMsg = !panelAppointed ? 'Draft received. Assign Chairperson & Examiners.' : 'Panel assigned. Schedule defence date & venue.';
     return {
-      key: 'corrections',
-      label: 'Corrections in Progress',
-      badgeClass: 'milestone-corrections',
-      deepTab: 'result',
-      actionLabel: 'Review Deliverables',
-      bottleneck: 'Awaiting candidate revised thesis & compliance matrix' + dueText,
+      key: 'panel_scheduling',
+      label: 'Panel & Scheduling',
+      badgeClass: 'milestone-scheduling',
+      deepTab: !panelAppointed ? 'panels' : 'schedule',
+      actionLabel: !panelAppointed ? 'Assign Panel' : 'Schedule Session',
+      bottleneck: schedMsg,
       checks: checks
     };
   }
 
-  // 5. Outcome & Notice Pending
-  if (bothReports) {
+  // 3. Scheduled Defences (panel appointed and session scheduled, but session not yet conducted/passed)
+  if (!sessionConducted) {
+    var dateMsg = item.sessionDate ? 'Session on ' + item.sessionDate : 'Session scheduled';
+    return {
+      key: 'scheduled',
+      label: 'Scheduled Defence',
+      badgeClass: 'milestone-scheduled',
+      deepTab: 'schedule',
+      actionLabel: 'View Schedule',
+      bottleneck: dateMsg + (item.calendarStatus ? ' (' + item.calendarStatus + ')' : ''),
+      checks: checks
+    };
+  }
+
+  // 4. Awaiting Reports (session conducted/passed, but one or both examiner reports not submitted)
+  if (!bothReports) {
+    var repMsg = !hasReport1 && (!hasEx2 || !item.hasReport2) ? 'Defence conducted. Awaiting Examiner 1 and Examiner 2 reports.' :
+                 (!hasReport1 ? 'Awaiting Examiner 1 report.' : 'Awaiting Examiner 2 report.');
+    return {
+      key: 'awaiting_reports',
+      label: 'Awaiting Reports',
+      badgeClass: 'milestone-reports',
+      deepTab: 'documents',
+      actionLabel: 'Manage Reports',
+      bottleneck: repMsg,
+      checks: checks
+    };
+  }
+
+  // 5. Outcome & Notice (both reports received, outcome notice pending)
+  if (!outcomeSent) {
     var outcomeMsg = (!item.resultScale || item.resultScale === 'Not recorded') ?
       'Panel reports received. Record scale & decision.' :
       'Outcome recorded. Send result notification email to student.';
@@ -7018,58 +7090,28 @@ function progressStageForCase(item) {
     };
   }
 
-  // 4. Awaiting Reports (Session held or date passed, or draft with partial report)
-  var sessionHeld = sessionStatus === 'completed' || sessionStatus === 'passed' || (isScheduled && isDatePast(item.sessionDate));
-  if (sessionHeld || (hasDraft && (hasReport1 || hasReport2))) {
-    var repMsg = !hasReport1 && !hasReport2 ? 'Defence conducted. Awaiting Examiner 1 and Examiner 2 reports.' :
-                 (!hasReport1 ? 'Awaiting Examiner 1 report.' : 'Awaiting Examiner 2 report.');
+  // 6. Corrections in Progress (outcome sent, revisions pending)
+  if (!finalDone) {
+    var dueText = item.correctionsDeadline ? ' (Due: ' + item.correctionsDeadline + ')' : '';
     return {
-      key: 'awaiting_reports',
-      label: 'Awaiting Reports',
-      badgeClass: 'milestone-reports',
-      deepTab: 'documents',
-      actionLabel: 'Manage Reports',
-      bottleneck: repMsg,
+      key: 'corrections',
+      label: 'Corrections in Progress',
+      badgeClass: 'milestone-corrections',
+      deepTab: 'result',
+      actionLabel: 'Review Deliverables',
+      bottleneck: 'Awaiting candidate revised thesis & compliance matrix' + dueText,
       checks: checks
     };
   }
 
-  // 3. Scheduled Defences (Upcoming session scheduled)
-  if (sessionStatus === 'scheduled' || item.sessionDate) {
-    var dateMsg = item.sessionDate ? 'Session on ' + item.sessionDate : 'Session scheduled';
-    return {
-      key: 'scheduled',
-      label: 'Scheduled Defence',
-      badgeClass: 'milestone-scheduled',
-      deepTab: 'schedule',
-      actionLabel: 'View Schedule',
-      bottleneck: dateMsg + (item.calendarStatus ? ' (' + item.calendarStatus + ')' : ''),
-      checks: checks
-    };
-  }
-
-  // 2. Panel & Scheduling (Draft uploaded, needs panel and/or scheduling)
-  if (hasDraft) {
-    var schedMsg = !hasPanel ? 'Draft received. Assign Chairperson & Examiners.' : 'Panel assigned. Schedule defence date & venue.';
-    return {
-      key: 'panel_scheduling',
-      label: 'Panel & Scheduling',
-      badgeClass: 'milestone-panel',
-      deepTab: !hasPanel ? 'panels' : 'schedule',
-      actionLabel: !hasPanel ? 'Assign Panel' : 'Schedule Session',
-      bottleneck: schedMsg,
-      checks: checks
-    };
-  }
-
-  // 1. Awaiting Draft
+  // 7. Ready to Close
   return {
-    key: 'awaiting_draft',
-    label: 'Awaiting Draft',
-    badgeClass: 'milestone-draft',
-    deepTab: 'documents',
-    actionLabel: 'Check Submission',
-    bottleneck: item.submissionEnabled === 'No' ? 'Student draft portal disabled' : 'Awaiting candidate draft submission',
+    key: 'ready_to_close',
+    label: 'Ready to Close',
+    badgeClass: 'milestone-ready',
+    deepTab: 'result',
+    actionLabel: 'Verify & Close',
+    bottleneck: 'Reports received & outcome sent. Ready for final verification and closure.',
     checks: checks
   };
 }
@@ -9394,7 +9436,6 @@ function workflowPanelHtml(mode){
     });
   }else{
     html+='<p class="workflow-blockers">'+(m.closeMissing.length?'Outstanding closure requirements: '+esc(m.closeMissing.join(', '))+'.':'Closure requirements are satisfied.')+'</p>';
-    if(!m.verified) html+='<label for="workflow-verification-note">Verification evidence / review reference</label><textarea id="workflow-verification-note" placeholder="Record what you checked and the supporting approval reference"></textarea><div class="workflow-actions"><button type="button" class="primary" data-workflow-verify>Record verification</button></div>';
     if(m.stageComplete&&r['Defence Type']==='Viva Voce'){
       const type=!m.finalDeposit?'FINAL_DEPOSIT':!m.senate?'SENATE_APPROVED':!m.programmeComplete?'PROGRAMME_COMPLETED':'';
       const labels={FINAL_DEPOSIT:'Record final deposit and clearance',SENATE_APPROVED:'Record Senate approval',PROGRAMME_COMPLETED:'Confirm programme completion'};
@@ -9407,12 +9448,13 @@ function workflowPanelHtml(mode){
 const workflowOldOverview=overviewHtml;
 overviewHtml=function(){return workflowPanelHtml('overview')+'<details class="workflow-utility"><summary>Case details and existing records</summary>'+workflowOldOverview()+'</details>';};
 const workflowOldResult=resultHtml;
-resultHtml=function(){return workflowPanelHtml('result')+workflowOldResult();};
+resultHtml=workflowOldResult;
 const workflowOldStage=progressStageForCase;
 progressStageForCase=function(item){
   if(!item.workflow)return workflowOldStage(item);
   const m=item.workflow,t=m.nextAdmin;
-  return {key:m.key,label:m.label,badgeClass:'milestone-'+(m.key==='closed'?'closed':'scheduled'),deepTab:t?t.tab:'overview',actionLabel:t?t.label:'Review stage',bottleneck:t?t.label:m.label,checks:{draft:item.hasDraft,panel:!!(item.chairperson&&item.examiner1),reports:(item.hasReport1?1:0)+(item.hasReport2?1:0)+'/2',outcomeNotice:item.outcomeEmailSent,endorsement:m.verified}};
+  const badgeMap={closed:'closed',awaiting_draft:'draft',panel_scheduling:'scheduling',scheduled:'scheduled',awaiting_reports:'reports',outcome_pending:'outcome',corrections:'corrections',ready_to_close:'ready'};
+  return {key:m.key,label:m.label,badgeClass:'milestone-'+(badgeMap[m.key]||'scheduled'),deepTab:t?t.tab:'overview',actionLabel:t?t.label:'Review stage',bottleneck:t?t.label:m.label,checks:{draft:item.hasDraft,panel:!!(item.chairperson&&item.examiner1),reports:(item.hasReport1?1:0)+(item.hasReport2?1:0)+'/2',outcomeNotice:item.outcomeEmailSent,endorsement:m.verified}};
 };
 const workflowOldDashboardModel=dashboardModel;
 dashboardModel=function(){

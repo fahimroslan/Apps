@@ -1555,9 +1555,11 @@ function adminSyncPreviewData_(record, data, clientData) {
   }
   // Fallback to Student Master if student fields are missing
   try {
-    const lookupKey = data['Student Key'] || data['Student Name'] || (clientData && (clientData['Student Key'] || clientData['Student Name']));
+    const lookupKey = data['Student Key'] || data['Student Name'] || data['Student Email'] || data['Case ID'] ||
+      (clientData && (clientData['Student Key'] || clientData['Student Name'] || clientData['Student Email']));
     const student = adminFindStudent_(lookupKey);
     if (student) {
+      if (!data['Student Key'] && student['Student Key']) data['Student Key'] = student['Student Key'];
       if (!data['Student Name'] && student['Student Name']) data['Student Name'] = student['Student Name'];
       if (!data['Student Email'] && student['Student Email']) data['Student Email'] = student['Student Email'];
       if (!data['Programme'] && student['Programme']) data['Programme'] = student['Programme'];
@@ -1568,6 +1570,49 @@ function adminSyncPreviewData_(record, data, clientData) {
   } catch (e) {
     console.warn('adminSyncPreviewData_ student lookup warning: ' + e.message);
   }
+
+  // Derive Result Status from Result Scale if missing
+  const scaleMap = {
+    'Scale 1': 'Unconditional pass',
+    'Scale 2': 'Conditional pass with minor corrections',
+    'Scale 3': 'Conditional pass with major corrections',
+    'Scale 4': 'Re-examination',
+    'Scale 5': 'Fail'
+  };
+  if (!String(data['Result Status'] || '').trim() && data['Result Scale'] && scaleMap[data['Result Scale']]) {
+    data['Result Status'] = scaleMap[data['Result Scale']];
+  }
+
+  // Derive Result Scale from Result Status if missing or 'Not recorded'
+  if (!String(data['Result Scale'] || '').trim() || String(data['Result Scale']).trim() === 'Not recorded') {
+    const statusNorm = normaliseAdmin_(data['Result Status']);
+    if (statusNorm.indexOf('minor') >= 0) {
+      data['Result Scale'] = 'Scale 2';
+    } else if (statusNorm.indexOf('major') >= 0) {
+      data['Result Scale'] = 'Scale 3';
+    } else if (statusNorm.indexOf('unconditional') >= 0 || statusNorm === 'pass') {
+      data['Result Scale'] = 'Scale 1';
+    } else if (statusNorm.indexOf('re-exam') >= 0 || statusNorm.indexOf('reexam') >= 0) {
+      data['Result Scale'] = 'Scale 4';
+    } else if (statusNorm.indexOf('fail') >= 0) {
+      data['Result Scale'] = 'Scale 5';
+    }
+  }
+
+  // Fallback corrections deadline
+  if (!String(data['Corrections Deadline'] || '').trim()) {
+    if (String(data['Final Submission Due'] || '').trim()) {
+      data['Corrections Deadline'] = String(data['Final Submission Due']).trim();
+    } else if (data['Result Scale'] === 'Scale 2' || data['Result Scale'] === 'Scale 3' || data['Result Scale'] === 'Scale 4') {
+      const baseDate = adminParseDateValue_(data['Session Date']) || new Date();
+      const monthsToAdd = (data['Result Scale'] === 'Scale 2') ? 1 : (data['Result Scale'] === 'Scale 3') ? 3 : 6;
+      const targetDate = new Date(baseDate.getTime());
+      targetDate.setMonth(targetDate.getMonth() + monthsToAdd);
+      data['Corrections Deadline'] = Utilities.formatDate(targetDate, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+      data['Final Submission Due'] = data['Corrections Deadline'];
+    }
+  }
+
   return data;
 }
 
@@ -1577,6 +1622,17 @@ function getAdminResultConfirmationLetterPreview(caseId, clientData) {
   if (!record) throw new Error('The selected case no longer exists.');
   const data = adminCaseObject_(record);
   adminSyncPreviewData_(record, data, clientData);
+
+  const scaleMap = {
+    'Scale 1': 'Unconditional pass',
+    'Scale 2': 'Conditional pass with minor corrections',
+    'Scale 3': 'Conditional pass with major corrections',
+    'Scale 4': 'Re-examination',
+    'Scale 5': 'Fail'
+  };
+  if (!String(data['Result Status'] || '').trim() && data['Result Scale'] && scaleMap[data['Result Scale']]) {
+    data['Result Status'] = scaleMap[data['Result Scale']];
+  }
 
   const html = adminGenerateResultConfirmationLetterHtml_(data);
   let pdfUrl = data['Result Confirmation Letter Link'] || '';
@@ -1596,6 +1652,22 @@ function getAdminResultConfirmationLetterPreview(caseId, clientData) {
   } catch (e) {
     console.warn('Auto-generation of result confirmation letter PDF: ' + e.message);
   }
+
+  // Persist resolved fields back to the sheet row if currently empty
+  const fieldsToPersist = [
+    'Student Name', 'Student Email', 'Programme', 'Research Title',
+    'Supervisor', 'Supervisor Email', 'Chairperson', 'Examiner 1', 'Examiner 2',
+    'Result Scale', 'Result Status', 'Corrections Deadline', 'Final Submission Due'
+  ];
+  fieldsToPersist.forEach(function(field) {
+    if (record.map[field] && data[field] && !String(record.values[record.map[field] - 1] || '').trim()) {
+      try {
+        record.sheet.getRange(record.row, record.map[field]).setValue(data[field]);
+      } catch (e) {}
+    }
+  });
+
+  data._revision = wfRevision_(record);
 
   return {
     ok: true,
@@ -1633,6 +1705,8 @@ function getAdminCandidateInvitationLetterPreview(caseId, clientData) {
   } catch (e) {
     console.warn('Auto-generation of candidate notice letter PDF: ' + e.message);
   }
+
+  data._revision = wfRevision_(record);
 
   return {
     ok: true,
@@ -1695,6 +1769,8 @@ function getAdminAppointmentLetterPreview(caseId, slot, clientData) {
   } catch (e) {
     console.warn('Auto-generation of appointment letter PDF: ' + e.message);
   }
+
+  data._revision = wfRevision_(record);
 
   return {
     ok: true,
@@ -1826,6 +1902,16 @@ function getAdminAllOutboundLettersPreview(caseId, clientData) {
   // 5. Result Confirmation Letter (if outcome/result recorded)
   if (data['Result Scale'] || data['Result Status'] || data['Result Confirmation Letter Link']) {
     try {
+      const scaleMap = {
+        'Scale 1': 'Unconditional pass',
+        'Scale 2': 'Conditional pass with minor corrections',
+        'Scale 3': 'Conditional pass with major corrections',
+        'Scale 4': 'Re-examination',
+        'Scale 5': 'Fail'
+      };
+      if (!String(data['Result Status'] || '').trim() && data['Result Scale'] && scaleMap[data['Result Scale']]) {
+        data['Result Status'] = scaleMap[data['Result Scale']];
+      }
       const resHtml = adminGenerateResultConfirmationLetterHtml_(data);
       let resPdfUrl = data['Result Confirmation Letter Link'] || '';
       const resPdf = adminGenerateResultConfirmationLetterPdf_(record, data, studentFolder);
@@ -1852,6 +1938,8 @@ function getAdminAllOutboundLettersPreview(caseId, clientData) {
   try {
     SpreadsheetApp.flush();
   } catch (e) {}
+
+  data._revision = wfRevision_(record);
 
   return {
     ok: true,
@@ -2004,19 +2092,86 @@ function adminExtractDriveFileId_(url) {
 
 function adminGenerateResultConfirmationLetterHtml_(data) {
   const defenceType = String(data['Defence Type'] || 'Proposal Defence').trim();
-  const studentName = String(data['Student Name'] || '').trim();
-  const studentKey = String(data['Student Key'] || data['Case ID'] || '').trim();
-  const programme = String(data['Programme'] || '').trim();
-  const researchTitle = String(data['Research Title'] || '').trim();
-  const resultScale = String(data['Result Scale'] || 'Not recorded').trim();
-  const resultStatus = String(data['Result Status'] || '').trim();
-  const correctionsDeadline = String(data['Corrections Deadline'] || '').trim();
+  let studentName = String(data['Student Name'] || '').trim();
+  let studentKey = String(data['Student Key'] || data['Case ID'] || '').trim();
+  let programme = String(data['Programme'] || '').trim();
+  let researchTitle = String(data['Research Title'] || '').trim();
+  let resultScale = String(data['Result Scale'] || '').trim();
+  let resultStatus = String(data['Result Status'] || '').trim();
+  let correctionsDeadline = String(data['Corrections Deadline'] || '').trim();
   const sessionDate = String(data['Session Date'] || '').trim();
 
-  const chair = String(data['Chairperson'] || 'Appointed Chairperson').trim();
-  const ex1 = String(data['Examiner 1'] || 'Examiner 1').trim();
-  const ex2 = String(data['Examiner 2'] || 'Examiner 2').trim();
-  const supervisor = String(data['Supervisor'] || 'Main Supervisor').trim();
+  let chair = String(data['Chairperson'] || '').trim();
+  let ex1 = String(data['Examiner 1'] || '').trim();
+  let ex2 = String(data['Examiner 2'] || '').trim();
+  let supervisor = String(data['Supervisor'] || '').trim();
+
+  // 1. Fallback to Student Master if candidate or supervisor info is missing
+  if (!studentName || !programme || !researchTitle || !supervisor) {
+    try {
+      const student = adminFindStudent_(studentKey || studentName || data['Student Email'] || data['Case ID']);
+      if (student) {
+        if (!studentName && student['Student Name']) studentName = student['Student Name'];
+        if (!programme && student['Programme']) programme = student['Programme'];
+        if (!researchTitle && student['Research Title']) researchTitle = student['Research Title'];
+        if (!supervisor && student['Supervisor']) supervisor = student['Supervisor'];
+        if (!data['Student Name']) data['Student Name'] = studentName;
+        if (!data['Programme']) data['Programme'] = programme;
+        if (!data['Research Title']) data['Research Title'] = researchTitle;
+        if (!data['Supervisor']) data['Supervisor'] = supervisor;
+      }
+    } catch (e) {
+      console.warn('adminGenerateResultConfirmationLetterHtml_ student lookup fallback: ' + e.message);
+    }
+  }
+
+  // 2. Fallback / reverse-mapping for Result Scale
+  if (!resultScale || resultScale === 'Not recorded') {
+    const statusNorm = normaliseAdmin_(resultStatus);
+    if (statusNorm.indexOf('minor') >= 0) {
+      resultScale = 'Scale 2';
+    } else if (statusNorm.indexOf('major') >= 0) {
+      resultScale = 'Scale 3';
+    } else if (statusNorm.indexOf('unconditional') >= 0 || statusNorm === 'pass') {
+      resultScale = 'Scale 1';
+    } else if (statusNorm.indexOf('re-exam') >= 0 || statusNorm.indexOf('reexam') >= 0) {
+      resultScale = 'Scale 4';
+    } else if (statusNorm.indexOf('fail') >= 0) {
+      resultScale = 'Scale 5';
+    } else {
+      const dec = wfDecision_(data);
+      if (dec && dec.code) {
+        const codeMap = { 'PASS': 'Scale 1', 'MINOR': 'Scale 2', 'MAJOR': 'Scale 3', 'REEXAM': 'Scale 4', 'FAIL': 'Scale 5' };
+        if (codeMap[dec.code]) resultScale = codeMap[dec.code];
+      }
+    }
+    if (resultScale && resultScale !== 'Not recorded') {
+      data['Result Scale'] = resultScale;
+    } else {
+      resultScale = 'Not recorded';
+    }
+  }
+
+  // 3. Fallback for Corrections Deadline
+  if (!correctionsDeadline) {
+    if (String(data['Final Submission Due'] || '').trim()) {
+      correctionsDeadline = String(data['Final Submission Due']).trim();
+    } else if (resultScale === 'Scale 2' || resultScale === 'Scale 3' || resultScale === 'Scale 4') {
+      const baseDate = adminParseDateValue_(sessionDate) || new Date();
+      const monthsToAdd = (resultScale === 'Scale 2') ? 1 : (resultScale === 'Scale 3') ? 3 : 6;
+      const targetDate = new Date(baseDate.getTime());
+      targetDate.setMonth(targetDate.getMonth() + monthsToAdd);
+      correctionsDeadline = Utilities.formatDate(targetDate, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+    }
+    if (correctionsDeadline) {
+      data['Corrections Deadline'] = correctionsDeadline;
+    }
+  }
+
+  if (!chair) chair = 'Appointed Chairperson';
+  if (!ex1) ex1 = 'Examiner 1';
+  if (!ex2) ex2 = 'Examiner 2';
+  if (!supervisor) supervisor = 'Main Supervisor';
 
   const defenceCode = defenceType === 'Viva Voce' ? 'VV' : 'PD';
   const year = new Date().getFullYear();
@@ -2152,7 +2307,8 @@ function adminGenerateResultConfirmationLetterPdf_(record, data, studentFolder) 
   return {
     file: file,
     blob: blob,
-    url: file.getUrl()
+    url: file.getUrl(),
+    fileName: fileName
   };
 }
 
@@ -2162,15 +2318,14 @@ function sendResultOutcomeEmail(caseId, clientData) {
   if (!record) throw new Error('The selected case no longer exists.');
   wfAssertRevision_(record,clientData&&clientData._revision);
   if(wfNorm_(wfRaw_(record)['Case Status'])==='closed')throw new Error('Reopen the stage explicitly before modifying arrangements or issuing outcomes.');
-  const data = adminCaseObject_(record.values, record.map);
-
-
+  const data = adminCaseObject_(record);
+  adminSyncPreviewData_(record, data, clientData);
 
   let studentEmail = String(data['Student Email'] || (clientData && clientData['Student Email']) || '').trim();
   if (!studentEmail) {
     const studentKey = String(data['Student Key'] || (clientData && clientData['Student Key']) || '').trim();
     const studentName = String(data['Student Name'] || (clientData && clientData['Student Name']) || '').trim();
-    const student = adminFindStudent_(studentKey || studentName);
+    const student = adminFindStudent_(studentKey || studentName || caseId);
     if (student && student['Student Email']) {
       studentEmail = String(student['Student Email']).trim();
     }
@@ -2184,16 +2339,138 @@ function sendResultOutcomeEmail(caseId, clientData) {
   adminValidateEmail_(studentEmail, 'Student email');
   data['Student Email'] = studentEmail;
 
-  if (record.map['Student Email'] && !String(record.values[record.map['Student Email'] - 1] || '').trim()) {
-    try {
-      record.sheet.getRange(record.row, record.map['Student Email']).setValue(studentEmail);
-    } catch (e) {}
+  const scaleMap = {
+    'Scale 1': 'Unconditional pass',
+    'Scale 2': 'Conditional pass with minor corrections',
+    'Scale 3': 'Conditional pass with major corrections',
+    'Scale 4': 'Re-examination',
+    'Scale 5': 'Fail'
+  };
+
+  const statusToScaleMap = {
+    'unconditional pass': 'Scale 1',
+    'conditional pass with minor corrections': 'Scale 2',
+    'conditional pass with major corrections': 'Scale 3',
+    're-examination': 'Scale 4',
+    'reexamination': 'Scale 4',
+    'fail': 'Scale 5'
+  };
+
+  if (!String(data['Result Status'] || '').trim()) {
+    const scale = String(data['Result Scale'] || (clientData && clientData['Result Scale']) || '').trim();
+    if (scale && scaleMap[scale]) {
+      data['Result Status'] = scaleMap[scale];
+    } else if (clientData && String(clientData['Result Status'] || '').trim()) {
+      data['Result Status'] = String(clientData['Result Status']).trim();
+    }
   }
+
+  if (!String(data['Result Status'] || '').trim()) {
+    const dec = wfDecision_(data);
+    if (dec && dec.code) {
+      const decMap = {
+        'PASS': 'Unconditional pass',
+        'MINOR': 'Conditional pass with minor corrections',
+        'MAJOR': 'Conditional pass with major corrections',
+        'REEXAM': 'Re-examination',
+        'FAIL': 'Fail'
+      };
+      if (decMap[dec.code]) {
+        data['Result Status'] = decMap[dec.code];
+      }
+    }
+  }
+
+  // Derive Result Scale if empty or 'Not recorded'
+  if (!String(data['Result Scale'] || '').trim() || String(data['Result Scale']).trim() === 'Not recorded') {
+    const statusNorm = normaliseAdmin_(data['Result Status']);
+    if (statusToScaleMap[statusNorm]) {
+      data['Result Scale'] = statusToScaleMap[statusNorm];
+    } else if (statusNorm.indexOf('minor') >= 0) {
+      data['Result Scale'] = 'Scale 2';
+    } else if (statusNorm.indexOf('major') >= 0) {
+      data['Result Scale'] = 'Scale 3';
+    } else if (statusNorm.indexOf('unconditional') >= 0 || statusNorm === 'pass') {
+      data['Result Scale'] = 'Scale 1';
+    } else if (statusNorm.indexOf('re-exam') >= 0 || statusNorm.indexOf('reexam') >= 0) {
+      data['Result Scale'] = 'Scale 4';
+    } else if (statusNorm.indexOf('fail') >= 0) {
+      data['Result Scale'] = 'Scale 5';
+    } else if (clientData && clientData['Result Scale']) {
+      data['Result Scale'] = String(clientData['Result Scale']).trim();
+    }
+  }
+
+  // Fallback corrections deadline
+  if (!String(data['Corrections Deadline'] || '').trim()) {
+    if (clientData && String(clientData['Corrections Deadline'] || '').trim()) {
+      data['Corrections Deadline'] = String(clientData['Corrections Deadline']).trim();
+    } else if (String(data['Final Submission Due'] || '').trim()) {
+      data['Corrections Deadline'] = String(data['Final Submission Due']).trim();
+    } else if (clientData && String(clientData['Final Submission Due'] || '').trim()) {
+      data['Corrections Deadline'] = String(clientData['Final Submission Due']).trim();
+    } else if (data['Result Scale'] === 'Scale 2' || data['Result Scale'] === 'Scale 3' || data['Result Scale'] === 'Scale 4') {
+      const baseDate = adminParseDateValue_(data['Session Date']) || new Date();
+      const monthsToAdd = (data['Result Scale'] === 'Scale 2') ? 1 : (data['Result Scale'] === 'Scale 3') ? 3 : 6;
+      const targetDate = new Date(baseDate.getTime());
+      targetDate.setMonth(targetDate.getMonth() + monthsToAdd);
+      data['Corrections Deadline'] = Utilities.formatDate(targetDate, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+      data['Final Submission Due'] = data['Corrections Deadline'];
+    }
+  }
+
+  // Persist resolved fields back to the sheet row if currently empty
+  const fieldsToPersist = [
+    'Student Name', 'Student Email', 'Programme', 'Research Title',
+    'Supervisor', 'Supervisor Email', 'Chairperson', 'Examiner 1', 'Examiner 2',
+    'Result Scale', 'Result Status', 'Corrections Deadline', 'Final Submission Due'
+  ];
+  fieldsToPersist.forEach(function(field) {
+    if (record.map[field] && data[field] && !String(record.values[record.map[field] - 1] || '').trim()) {
+      try {
+        record.sheet.getRange(record.row, record.map[field]).setValue(data[field]);
+      } catch (e) {}
+    }
+  });
 
   adminRequired_(data['Result Status'], 'Result status');
   const currentEmailStatus = normaliseAdmin_(data['Result Email Status']);
   if(currentEmailStatus==='sent'&&!(clientData&&clientData._resendConfirmed))throw new Error('The result email was already sent. Use the explicit reviewed resend action.');
   if(!wfDecision_(data).known)throw new Error('Record an unambiguous academic decision before sending the outcome.');
+
+  // Resolve Examiner 1 and 2 Report Links from clientData, Form Link, or Examiner Report File if needed
+  ['Examiner 1', 'Examiner 2'].forEach(function(slot) {
+    const reportKey = slot + ' Report Link';
+    const formKey = slot + ' Form Link';
+    const statusKey = slot + ' Report Status';
+
+    if (!String(data[reportKey] || '').trim()) {
+      if (clientData && String(clientData[reportKey] || '').trim()) {
+        data[reportKey] = String(clientData[reportKey]).trim();
+      } else if (data['Examiner Report File']) {
+        const repFile = String(data['Examiner Report File']).trim();
+        const m = repFile.match(new RegExp(slot + ':\\s*([^\\r\\n]+)', 'i'));
+        if (m && m[1]) {
+          data[reportKey] = m[1].trim();
+        } else if (!/Examiner\s*[12]/i.test(repFile) && slot === 'Examiner 1' && adminExtractDriveFileId_(repFile)) {
+          data[reportKey] = repFile;
+        }
+      }
+      if (data[reportKey] && record.map[reportKey] && !String(record.values[record.map[reportKey] - 1] || '').trim()) {
+        try { record.sheet.getRange(record.row, record.map[reportKey]).setValue(data[reportKey]); } catch (e) {}
+      }
+    }
+
+    if (String(data[reportKey] || '').trim()) {
+      const curStatus = normaliseAdmin_(data[statusKey]);
+      if (!curStatus || curStatus === 'pending' || curStatus === 'awaiting submission') {
+        data[statusKey] = 'Received';
+        if (record.map[statusKey]) {
+          try { record.sheet.getRange(record.row, record.map[statusKey]).setValue('Received'); } catch (e) {}
+        }
+      }
+    }
+  });
 
   // Official result notification email requires all appointed examiner reports
   const report1 = adminReportReceived_(data, 'Examiner 1');
@@ -2264,12 +2541,13 @@ function sendResultOutcomeEmail(caseId, clientData) {
         attachmentSummary.push(cfg.label + ' (' + cleanName + ')');
       }
     } catch (e) {
-      throw new Error('Required outcome attachment unavailable: '+cfg.label+'. No outcome email was sent.');
+      throw new Error('Required outcome attachment unavailable: ' + cfg.label + ' (' + e.message + '). Please ensure the Google Drive file exists and is accessible.');
     }
   });
 
-  const requiredLabels=['Examiner 1 Report'].concat(hasExaminer2?['Examiner 2 Report']:[]);
-  requiredLabels.forEach(function(label){if(!attachmentSummary.some(function(item){return item.indexOf(label+' (')===0;}))throw new Error('Required attachment missing: '+label+'. No outcome email was sent.');});
+  const hasCombined = attachmentSummary.some(function(item){ return item.indexOf('Combined Examiner Report (') === 0; });
+  const requiredLabels = hasCombined ? [] : ['Examiner 1 Report'].concat(hasExaminer2 ? ['Examiner 2 Report'] : []);
+  requiredLabels.forEach(function(label){ if(!attachmentSummary.some(function(item){ return item.indexOf(label+' (') === 0; })) throw new Error('Required attachment missing: ' + label + '. No outcome email was sent.'); });
 
   // 4. Assemble email text & HTML
   const assembled = adminAssembleEmail_('RESULT_OUTCOME', data, { name: data['Student Name'], email: studentEmail });
@@ -3459,7 +3737,7 @@ function adminCaseObject_(values, map) {
   }
   const obj = {};
   if (map) {
-    ADMIN_HEADERS.forEach(function(h) {
+    Object.keys(map).forEach(function(h) {
       const col = map[h];
       let val = col ? String(values[col - 1] == null ? '' : values[col - 1]).trim() : '';
       if (!val && recordObj && recordObj.sheet && recordObj.row && col) {
@@ -3612,16 +3890,32 @@ function adminEnsureProgressionModel_(force) {
 function adminReportReceived_(data, slot) {
   const link = String(data[slot + ' Report Link'] || '').trim();
   const status = normaliseAdmin_(data[slot + ' Report Status']);
+  const hasDirectLink = Boolean(link && /^https?:\/\//i.test(link));
+  const isStatusSubmitted = ['submitted','received','uploaded','complete','completed','verified'].indexOf(status) >= 0;
+  const isPendingStatus = ['pending','awaiting submission','not submitted','unsubmitted'].indexOf(status) >= 0;
+  const isStatusPending = isPendingStatus;
+
+  if (hasDirectLink && !isStatusPending) return true;
+  if (isStatusSubmitted) return true;
+
   const panelReport = String(data['Examiner Report File'] || '').trim();
-  if (Boolean(panelReport)) return true;
-  if (!link) return false;
-  return ['pending','awaiting submission'].indexOf(status) === -1;
+  if (panelReport) {
+    if (/Examiner\s*[12]/i.test(panelReport)) {
+      const regex = new RegExp(slot + ':[^\\r\\n]*?(https?:\\/\\/[^\\s\\r\\n]+)', 'i');
+      const m = panelReport.match(regex);
+      if (m && m[1]) return true;
+    } else if (/^https?:\/\//i.test(panelReport) && !isStatusPending) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function adminCaseCloseState_(data) {
   const m=wfModel_(data);
+  const hasEx2 = Boolean(String(data['Examiner 2'] || data['Examiner 2 Email'] || '').trim());
   return {ready:m.closeReady,report1:adminReportReceived_(data,'Examiner 1'),
-    report2:!data['Examiner 2']||adminReportReceived_(data,'Examiner 2'),
+    report2:!hasEx2||adminReportReceived_(data,'Examiner 2'),
     outcomeEmail:normaliseAdmin_(data['Result Email Status'])==='sent'&&!!data['Result Email Sent At'],missing:m.closeMissing};
 }
 
@@ -3726,14 +4020,18 @@ function adminStudentSheet_(){
 function adminStudentRows_(){
   const sheet=adminStudentSheet_();
   if(sheet.getLastRow()<2) return [];
-  return sheet.getRange(2,1,sheet.getLastRow()-1,ADMIN_STUDENT_HEADERS.length).getDisplayValues().map(function(row,index){const data={row:index+2};ADMIN_STUDENT_HEADERS.forEach(function(h,i){data[h]=String(row[i]||'').trim();});return data;}).filter(function(data){return data['Student Key']&&data['Student Name'];});
+  return sheet.getRange(2,1,sheet.getLastRow()-1,ADMIN_STUDENT_HEADERS.length).getDisplayValues().map(function(row,index){const data={row:index+2};ADMIN_STUDENT_HEADERS.forEach(function(h,i){data[h]=String(row[i]||'').trim();});return data;}).filter(function(data){return Boolean(data['Student Key']||data['Student Name']);});
 }
 
 function adminFindStudent_(studentKey){
   const key=String(studentKey||'').trim();
   if(!key) return null;
+  const nKey=normaliseAdmin_(key);
   return adminStudentRows_().find(function(student){
-    return student['Student Key']===key || normaliseAdmin_(student['Student Name'])===normaliseAdmin_(key);
+    return (student['Student Key'] && student['Student Key'] === key) ||
+           (student['Student Key'] && normaliseAdmin_(student['Student Key']) === nKey) ||
+           (student['Student Name'] && normaliseAdmin_(student['Student Name']) === nKey) ||
+           (student['Student Email'] && normaliseAdmin_(student['Student Email']) === nKey);
   })||null;
 }
 
@@ -3743,8 +4041,8 @@ function adminListCases_() {
   return sheet.getRange(ADMIN_CONFIG.HEADER_ROW+1,1,count,sheet.getLastColumn()).getDisplayValues().filter(function(row){return String(row[map['Case ID']-1]||row[map['Student Name']-1]).trim();}).map(function(row){const raw={};Object.keys(map).forEach(function(h){raw[h]=row[map[h]-1]||'';});return {
     workflow:wfModel_(raw),
     caseId:String(row[map['Case ID']-1]||'').trim(),studentKey:String(row[map['Student Key']-1]||'').trim(),studentName:String(row[map['Student Name']-1]||'').trim(),progressionRoute:String(row[map['Progression Route']-1]||'').trim(),defenceType:String(row[map['Defence Type']-1]||'').trim(),stageAttempt:String(row[map['Stage Attempt']-1]||'1').trim(),sessionDate:String(row[map['Session Date']-1]||'').trim(),sessionStatus:String(row[map['Session Status']-1]||'').trim(),resultStatus:String(row[map['Result Status']-1]||'').trim(),resultScale:String(row[map['Result Scale']-1]||'').trim(),submissionEnabled:String(row[map['Submission Enabled']-1]||'').trim(),caseStatus:String(row[map['Case Status']-1]||'Active').trim(),hasDraft:Boolean(String(row[map['Student Draft Link']-1]||'').trim()),
-    hasReport1:adminReportReceived_({'Examiner 1 Report Link':row[map['Examiner 1 Report Link']-1],'Examiner 1 Report Status':row[map['Examiner 1 Report Status']-1]},'Examiner 1'),
-    hasReport2:adminReportReceived_({'Examiner 2 Report Link':row[map['Examiner 2 Report Link']-1],'Examiner 2 Report Status':row[map['Examiner 2 Report Status']-1]},'Examiner 2'),
+    hasReport1:adminReportReceived_(raw,'Examiner 1'),
+    hasReport2:adminReportReceived_(raw,'Examiner 2'),
     outcomeEmailSent:normaliseAdmin_(row[map['Result Email Status']-1])==='sent'&&Boolean(String(row[map['Result Email Sent At']-1]||'').trim()),
     programme:String(row[map['Programme']-1]||'').trim(),
     supervisor:String(row[map['Supervisor']-1]||'').trim(),
@@ -3942,10 +4240,15 @@ function adminResetDeliberation(caseId) {
   adminLog_(adminEmail, 'Reset deliberation outcome to Pending', caseId, data['Student Name'], ['Session Status', 'Result Scale', 'Result Status', 'Corrections Deadline'], 'Success', 'Deliberation reset to Pending.');
 
   const refreshed = adminFindCase_(caseId);
+  const refreshedData = refreshed ? adminCaseObject_(refreshed) : data;
+  if (refreshed) {
+    refreshedData._revision = wfRevision_(refreshed);
+    refreshedData._workflow = wfModel_(wfRaw_(refreshed));
+  }
   return {
     ok: true,
     message: 'Deliberation outcome for ' + (data['Student Name'] || caseId) + ' has been reset to Pending.',
-    caseData: refreshed ? adminCaseObject_(refreshed) : data,
+    caseData: refreshedData,
     cases: adminListCases_(),
     students: adminListStudents_()
   };
