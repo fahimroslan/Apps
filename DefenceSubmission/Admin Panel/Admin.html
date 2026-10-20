@@ -3176,10 +3176,14 @@ dialog h2 { margin-top: 0; color: var(--purple-deep); font-size: 17px; }
       <div class="sidebar-active-case-card" id="sidebarActiveCaseCard" hidden>
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.05em;margin-bottom:6px;">Active Candidate</div>
         <div id="sidebarCaseName" style="font-size:13px;font-weight:700;color:var(--purple-deep);line-height:1.3;">-</div>
-        <div id="sidebarCaseStage" style="font-size:11px;color:var(--muted);margin-top:3px;">-</div>
-        <button type="button" class="sidebar-action-btn" onclick="navigatePage('students')" style="margin-top:10px;">
-          &larr; Switch Student
-        </button>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <button type="button" class="sidebar-action-btn" onclick="navigatePage('students')" style="flex:1;">
+            &larr; Switch
+          </button>
+          <button type="button" class="sidebar-action-btn" id="sidebarStudentPanelBtn" onclick="openActiveStudentPanel()" style="flex:1;background:var(--purple-100);color:var(--purple-800);border:1px solid var(--purple-300);" title="Open Student Panel in new window">
+            Panel ↗
+          </button>
+        </div>
       </div>
 
       <!-- Quick Add Student Action Buttons (Single & Bulk) -->
@@ -3500,6 +3504,7 @@ dialog h2 { margin-top: 0; color: var(--purple-deep); font-size: 17px; }
         <div style="display:flex;gap:8px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px;">
           <button type="button" id="adminTabMeetingsBtn" class="primary" style="padding:6px 14px;font-size:12.5px;min-height:34px;" onclick="switchAdminSupervisionTab('meetings')">Supervision Meetings Registry</button>
           <button type="button" id="adminTabProgressBtn" class="secondary" style="padding:6px 14px;font-size:12.5px;min-height:34px;" onclick="switchAdminSupervisionTab('progress')">Progress Monitoring Reports</button>
+          <button type="button" id="adminTabRequestsBtn" class="secondary" style="padding:6px 14px;font-size:12.5px;min-height:34px;" onclick="switchAdminSupervisionTab('requests')">Academic Service Requests</button>
         </div>
 
         <!-- Notice Banner -->
@@ -3575,6 +3580,28 @@ dialog h2 { margin-top: 0; color: var(--purple-deep); font-size: 17px; }
               </thead>
               <tbody id="adminProgressTableBody">
                 <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted);font-style:italic;">Loading progress reports...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab Panel 3: Academic Service Requests -->
+        <div id="adminRequestsPanel" style="display:none;">
+          <div class="directory-table-wrap" style="overflow-x:auto;">
+            <table class="directory-table" style="width:100%;font-size:12.5px;">
+              <thead>
+                <tr>
+                  <th style="white-space:nowrap;">Date</th>
+                  <th>Candidate</th>
+                  <th>Request Type</th>
+                  <th>Subject & Details</th>
+                  <th>Attachment</th>
+                  <th>Status</th>
+                  <th>Resolution</th>
+                </tr>
+              </thead>
+              <tbody id="adminRequestsTableBody">
+                <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);font-style:italic;">No student academic requests on record.</td></tr>
               </tbody>
             </table>
           </div>
@@ -3750,6 +3777,14 @@ dialog h2 { margin-top: 0; color: var(--purple-deep); font-size: 17px; }
             </div>
             <div class="hero-actions-col">
               <div id="recordActions" class="record-actions" hidden>
+                <button id="openStudentPanelBtn" class="secondary" type="button" title="Open candidate Student Panel in a new window">
+                  <svg class="ui-icon" style="color:var(--purple-deep);" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  <span>Student Panel ↗</span>
+                </button>
+                <button id="openSupervisorPanelBtn" class="secondary" type="button" title="Open appointed Supervisor Panel in a new window">
+                  <svg class="ui-icon" style="color:#4338ca;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  <span>Supervisor Panel ↗</span>
+                </button>
                 <button id="editStudentButton" class="secondary" type="button">
                   <svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                   <span>Edit Student</span>
@@ -4002,6 +4037,59 @@ dialog h2 { margin-top: 0; color: var(--purple-deep); font-size: 17px; }
     </form>
   </dialog>
 
+  <dialog id="adminReportUploadModal" style="max-width:540px;width:95%;border:none;border-radius:12px;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,0.25);margin:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line);">
+      <div>
+        <h2 style="margin:0;font-size:18px;color:var(--purple-deep);">Upload / Replace Examiner Report</h2>
+        <p style="margin:4px 0 0;font-size:12px;color:var(--muted);">Store evaluation report directly in candidate's Google Drive &amp; update registry.</p>
+      </div>
+      <button type="button" class="secondary btn-sm" onclick="closeAdminReportUploadModal()">&times; Close</button>
+    </div>
+
+    <div id="uploadReportCandidateInfo" style="background:#f8fafc;padding:12px 14px;border-radius:8px;border:1px solid var(--line);font-size:12.5px;margin-bottom:14px;">
+      <div>Candidate: <strong id="uploadReportCandidateName" style="color:var(--purple-deep);">-</strong></div>
+      <div style="margin-top:3px;font-size:11.5px;color:var(--muted);">Defence Stage: <span id="uploadReportDefenceType">-</span> &middot; Case ID: <code id="uploadReportCaseId">-</code></div>
+    </div>
+
+    <div id="uploadReportNotice" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.5;"></div>
+
+    <form id="uploadReportForm" onsubmit="submitAdminReportUpload(event)" style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field">
+        <label for="adminReportSlotSelect"><b>Examiner Slot:</b></label>
+        <select id="adminReportSlotSelect" onchange="handleAdminReportSlotChange()" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:13px;background:#fff;margin-top:4px;">
+          <option value="Examiner 1">Examiner 1</option>
+          <option value="Examiner 2">Examiner 2</option>
+        </select>
+        <div id="adminReportExaminerDetail" style="font-size:11.5px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+
+      <div id="adminReportCurrentStatusBox" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px;font-size:12px;display:none;">
+        <span style="color:#166534;font-weight:600;">Current Report on File:</span>
+        <span id="adminReportCurrentFileLink" style="display:block;margin-top:2px;"></span>
+        <span style="font-size:11px;color:#15803d;display:block;margin-top:4px;">⚠️ Uploading a new file will replace this report and update the Drive record.</span>
+      </div>
+
+      <div style="border:2px dashed var(--purple-300);border-radius:10px;padding:24px 16px;text-align:center;background:#faf8fc;cursor:pointer;" onclick="document.getElementById('adminReportFileInput').click()">
+        <svg class="ui-icon" style="width:36px;height:36px;color:var(--primary);margin-bottom:6px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div style="font-weight:700;font-size:13px;color:var(--ink);">Click to browse or drop examiner evaluation report</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:4px;" id="adminReportFileChosenLabel">Supports PDF, DOCX, DOC (up to 20 MB)</div>
+        <input type="file" id="adminReportFileInput" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none;" onchange="handleAdminReportFileSelected(event)">
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid var(--line);font-size:12px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--ink);">
+          <input type="checkbox" id="adminReportResetEmailStatus">
+          <span><b>Reset Result Email Status to 'Not prepared'</b> (recommended if result email was already 'Ready to Send' so you can review before dispatching)</span>
+        </label>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;padding-top:12px;border-top:1px solid var(--line);">
+        <button type="button" class="secondary" onclick="closeAdminReportUploadModal()">Cancel</button>
+        <button type="submit" class="primary" id="uploadReportSubmitBtn" disabled>Upload &amp; Record Report</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
   <datalist id="chairList"></datalist>
   <datalist id="examinerList"></datalist>
@@ -4127,7 +4215,7 @@ function populateDirectoryOptions(){document.getElementById('directoryStatus').i
 function resetDirectoryForm(){document.getElementById('directoryOriginalName').value='';document.getElementById('directoryName').value='';document.querySelectorAll('[name="directoryRole"]').forEach(function(el){el.checked=false;});document.getElementById('directoryPrimaryEmail').value='';document.getElementById('directoryAlternateEmail').value='';document.getElementById('directoryStatus').value='Active';document.getElementById('directoryFormTitle').textContent='Add person';document.getElementById('directorySaveButton').textContent='Add person';}
 function openDirectory(){setPage('staff');document.getElementById('caseForm').hidden=true;document.getElementById('empty').hidden=true;document.getElementById('directoryView').hidden=false;resetDirectoryForm();renderDirectory();window.scrollTo({top:0,behavior:'smooth'});}
 function closeDirectory(){navigatePage('dashboard');}
-function renderDirectory(){var q=document.getElementById('directoryFilter').value.trim().toLowerCase(),people=staffPeople().filter(function(p){return[p.name,(p.roles||[]).join(' '),p.role,p.primaryEmail,p.alternateEmail,p.status].join(' ').toLowerCase().indexOf(q)>=0;}).sort(function(a,b){return String(a.role||'').localeCompare(String(b.role||''))||a.name.localeCompare(b.name);});document.getElementById('directoryList').innerHTML=people.map(function(p){var roles=directoryRolesValue(p);return'<article class="person-card '+(String(p.status).toLowerCase()==='active'?'':'inactive')+'"><div class="person-main"><b>'+esc(p.name)+'</b><span class="person-role">'+esc(roles.join(' · ')||'Needs classification')+'</span><span>'+esc(p.primaryEmail||p.alternateEmail||'No email')+' · '+esc(p.status||'Active')+'</span></div><div class="person-actions"><button class="secondary" type="button" data-directory-edit="'+esc(p.name)+'">Edit</button><button class="danger" type="button" data-directory-delete="'+esc(p.name)+'">Delete</button></div></article>';}).join('')||'<p class="hint">No matching directory records.</p>';document.querySelectorAll('[data-directory-edit]').forEach(function(b){b.addEventListener('click',function(){editDirectoryPerson(b.getAttribute('data-directory-edit'));});});document.querySelectorAll('[data-directory-delete]').forEach(function(b){b.addEventListener('click',function(){deleteDirectoryPerson(b.getAttribute('data-directory-delete'),b);});});}
+function renderDirectory(){var q=document.getElementById('directoryFilter').value.trim().toLowerCase(),people=staffPeople().filter(function(p){return[p.name,(p.roles||[]).join(' '),p.role,p.primaryEmail,p.alternateEmail,p.status].join(' ').toLowerCase().indexOf(q)>=0;}).sort(function(a,b){return String(a.role||'').localeCompare(String(b.role||''))||a.name.localeCompare(b.name);});document.getElementById('directoryList').innerHTML=people.map(function(p){var roles=directoryRolesValue(p);var email=p.primaryEmail||p.alternateEmail||'';var hasPanelRole=roles.indexOf('Supervisor')>=0||roles.indexOf('Panel')>=0||!roles.length;var openPortalBtn=hasPanelRole?'<button class="secondary" type="button" data-directory-open-panel="'+esc(p.name)+'" data-directory-email="'+esc(email)+'" title="Open Supervisory / Examiner Portal for '+esc(p.name)+'">Open Panel ↗</button>':'';return'<article class="person-card '+(String(p.status).toLowerCase()==='active'?'':'inactive')+'"><div class="person-main"><b>'+esc(p.name)+'</b><span class="person-role">'+esc(roles.join(' · '||'Needs classification'))+'</span><span>'+esc(email||'No email')+' · '+esc(p.status||'Active')+'</span></div><div class="person-actions">'+openPortalBtn+'<button class="secondary" type="button" data-directory-edit="'+esc(p.name)+'">Edit</button><button class="danger" type="button" data-directory-delete="'+esc(p.name)+'">Delete</button></div></article>';}).join('')||'<p class="hint">No matching directory records.</p>';document.querySelectorAll('[data-directory-open-panel]').forEach(function(b){b.addEventListener('click',function(){openFacultyPanel(b.getAttribute('data-directory-open-panel'),b.getAttribute('data-directory-email'));});});document.querySelectorAll('[data-directory-edit]').forEach(function(b){b.addEventListener('click',function(){editDirectoryPerson(b.getAttribute('data-directory-edit'));});});document.querySelectorAll('[data-directory-delete]').forEach(function(b){b.addEventListener('click',function(){deleteDirectoryPerson(b.getAttribute('data-directory-delete'),b);});});}
 function editDirectoryPerson(name){var p=state.directory.find(function(x){return x.name===name;});if(!p)return;var roles=directoryRolesValue(p);document.getElementById('directoryOriginalName').value=p.name;document.getElementById('directoryName').value=p.name;document.querySelectorAll('[name="directoryRole"]').forEach(function(el){el.checked=roles.indexOf(el.value)>=0;});document.getElementById('directoryPrimaryEmail').value=p.primaryEmail||'';document.getElementById('directoryAlternateEmail').value=p.alternateEmail||'';document.getElementById('directoryStatus').value=p.status||'Active';document.getElementById('directoryFormTitle').textContent='Edit person';document.getElementById('directorySaveButton').textContent='Save person';document.getElementById('directoryName').focus();}
 function applyDirectoryResponse(r){state.directory=r.directory||[];state.panels=r.panels||[];state.supervisors=r.supervisors||[];refreshAssignmentLists();renderDirectory();resetDirectoryForm();showNotice(r.message,'success');}
 function saveDirectoryPerson(e){e.preventDefault();if(state.busy)return;var button=document.getElementById('directorySaveButton'),roles=Array.prototype.map.call(document.querySelectorAll('[name="directoryRole"]:checked'),function(el){return el.value;}),originalName=document.getElementById('directoryOriginalName').value;if(!roles.length){showNotice('Select at least one role: Supervisor, Panel, or Admin.','error');return;}var existing=state.directory.find(function(p){return p.name===originalName;}),hadAdmin=existing&&directoryRolesValue(existing).indexOf('Admin')>=0;if(roles.indexOf('Admin')>=0&&!hadAdmin&&!window.confirm('Grant Admin Portal access to this person?'+String.fromCharCode(10,10)+'Their primary or alternate email will be able to manage students, cases, panels, results and email actions.'))return;var payload={originalName:originalName,name:document.getElementById('directoryName').value,roles:roles,primaryEmail:document.getElementById('directoryPrimaryEmail').value,alternateEmail:document.getElementById('directoryAlternateEmail').value,status:document.getElementById('directoryStatus').value};state.busy=true;button.disabled=true;button.textContent='Saving…';google.script.run.withSuccessHandler(function(r){state.busy=false;button.disabled=false;applyDirectoryResponse(r);}).withFailureHandler(function(e){state.busy=false;button.disabled=false;button.textContent=document.getElementById('directoryOriginalName').value?'Save person':'Add person';showError(e);}).saveAdminDirectoryPerson(payload);}
@@ -4299,6 +4387,8 @@ function overviewHtml(){
         (hasReport2 ? '<a href="' + esc(r['Examiner 2 Report Link']) + '" target="_blank" rel="noopener" class="record-link" style="background:#fff;border:1px solid #a7f3d0;padding:6px 12px;border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:600;color:#065f46;display:inline-flex;align-items:center;gap:4px;">Examiner 2 Report &nearr;</a>' : '') +
         (hasThesis ? '<a href="' + esc(r['Final Thesis Link']) + '" target="_blank" rel="noopener" class="record-link" style="background:#065f46;color:#ffffff;border:1px solid #065f46;padding:6px 12px;border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">Final Softcopy Manuscript &nearr;</a>' : '') +
         (hasMatrix ? '<a href="' + esc(r['Correction Matrix Link']) + '" target="_blank" rel="noopener" class="record-link" style="background:#fff;border:1px solid #a7f3d0;padding:6px 12px;border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:600;color:#065f46;display:inline-flex;align-items:center;gap:4px;">Table of Amendments &nearr;</a>' : '') +
+        '<button type="button" class="record-link" onclick="openCandidateStudentPanel(\'' + esc(r['Case ID'] || state.currentId) + '\')" style="background:#fff;border:1px solid #c4b5fd;padding:6px 12px;border-radius:6px;font-size:11.5px;font-weight:600;color:var(--purple-deep);display:inline-flex;align-items:center;gap:4px;cursor:pointer;">Candidate Student Panel &nearr;</button>' +
+        '<button type="button" class="record-link" onclick="openActiveSupervisorPanel(\'' + esc(r['Case ID'] || state.currentId) + '\')" style="background:#fff;border:1px solid #c7d2fe;padding:6px 12px;border-radius:6px;font-size:11.5px;font-weight:600;color:#4338ca;display:inline-flex;align-items:center;gap:4px;cursor:pointer;">Supervisor Panel &nearr;</button>' +
         '<button type="button" class="record-link" onclick="openCandidateDriveFolder(\'' + esc(r['Case ID'] || state.currentId) + '\')" style="background:#fff;border:1px solid #a7f3d0;padding:6px 12px;border-radius:6px;font-size:11.5px;font-weight:600;color:#065f46;display:inline-flex;align-items:center;gap:4px;cursor:pointer;">Candidate Drive Folder &nearr;</button>' +
       '</div>' +
     '</div>';
@@ -4312,6 +4402,14 @@ function overviewHtml(){
         '<p>' + esc((r['Defence Type']||'Defence stage')+' · Attempt '+(r['Stage Attempt']||'1')+' · '+(r['Case ID']||'')) + '</p>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<button type="button" class="secondary" style="font-size:12px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;font-weight:600;" onclick="openCandidateStudentPanel(\'' + esc(r['Case ID'] || state.currentId) + '\')" title="Open candidate Student Panel">' +
+          '<svg class="ui-icon" style="width:14px;height:14px;color:var(--purple-deep);" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+          '<span>Open Student Panel ↗</span>' +
+        '</button>' +
+        '<button type="button" class="secondary" style="font-size:12px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;font-weight:600;" onclick="openActiveSupervisorPanel(\'' + esc(r['Case ID'] || state.currentId) + '\')" title="Open appointed Supervisor Panel">' +
+          '<svg class="ui-icon" style="width:14px;height:14px;color:#4338ca;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+          '<span>Open Supervisor Panel ↗</span>' +
+        '</button>' +
         '<button type="button" class="secondary" style="font-size:12px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;font-weight:600;" onclick="openCandidateDriveFolder(\'' + esc(r['Case ID'] || state.currentId) + '\')" title="Open this candidate\'s Google Drive folder">' +
           '<svg class="ui-icon" style="width:14px;height:14px;color:#2563eb;" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
           '<span>Open Student Drive Folder ↗</span>' +
@@ -4330,6 +4428,24 @@ function overviewHtml(){
         '</span>' +
         '<button type="button" class="secondary" style="font-size:11px;padding:2px 8px;" onclick="openChangeRouteModal()">' +
           'Change Route &rarr;' +
+        '</button>' +
+      '</dd>' +
+    '</div>' +
+    '<div>' +
+      '<dt>Student Panel</dt>' +
+      '<dd style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<button type="button" class="secondary btn-sm" style="font-size:11.5px;padding:4px 10px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;" onclick="openCandidateStudentPanel(\'' + esc(r['Case ID'] || state.currentId) + '\')" title="Open candidate Student Panel">' +
+          '<svg class="ui-icon" style="width:13px;height:13px;color:var(--purple-deep);" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+          '<span>Open Student Panel ↗</span>' +
+        '</button>' +
+      '</dd>' +
+    '</div>' +
+    '<div>' +
+      '<dt>Supervisor Panel</dt>' +
+      '<dd style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<button type="button" class="secondary btn-sm" style="font-size:11.5px;padding:4px 10px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;" onclick="openActiveSupervisorPanel(\'' + esc(r['Case ID'] || state.currentId) + '\')" title="Open appointed Supervisor Panel">' +
+          '<svg class="ui-icon" style="width:13px;height:13px;color:#4338ca;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+          '<span>Open Supervisor Panel ↗</span>' +
         '</button>' +
       '</dd>' +
     '</div>' +
@@ -4418,12 +4534,24 @@ function documentsHtml(){
     {
       name: 'Examiner 1 report',
       status: r['Examiner 1 Report Status'] || 'Awaiting submission',
-      action: documentLink(r['Examiner 1 Report Link'])
+      action: '<div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+        (r['Examiner 1 Report Link'] ? documentLink(r['Examiner 1 Report Link'], 'View Report ↗') : '<span class="hint" style="font-size:11px;">(Awaiting upload)</span>') +
+        '<button type="button" class="secondary btn-sm" style="font-size:11px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="openAdminReportUploadModal(\'Examiner 1\')" title="Admin manual upload or replace report">' +
+          '<svg class="ui-icon" style="width:11px;height:11px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+          (r['Examiner 1 Report Link'] ? 'Replace / Re-upload' : 'Upload Report') +
+        '</button>' +
+      '</div>'
     },
     {
       name: 'Examiner 2 report',
       status: r['Examiner 2 Report Status'] || 'Awaiting submission',
-      action: documentLink(r['Examiner 2 Report Link'])
+      action: '<div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+        (r['Examiner 2 Report Link'] ? documentLink(r['Examiner 2 Report Link'], 'View Report ↗') : '<span class="hint" style="font-size:11px;">(Awaiting upload)</span>') +
+        '<button type="button" class="secondary btn-sm" style="font-size:11px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="openAdminReportUploadModal(\'Examiner 2\')" title="Admin manual upload or replace report">' +
+          '<svg class="ui-icon" style="width:11px;height:11px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+          (r['Examiner 2 Report Link'] ? 'Replace / Re-upload' : 'Upload Report') +
+        '</button>' +
+      '</div>'
     },
     {
       name: 'Examiner 1 form',
@@ -4446,6 +4574,22 @@ function documentsHtml(){
       action: documentLink(r['Correction Matrix Link'])
     }
   ];
+  var examinerUploadWidgetHtml = '<div style="background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">' +
+    '<div>' +
+      '<strong style="color:var(--purple-deep);display:block;font-size:13px;">Manual Examiner Evaluation Report Upload &amp; Recovery (Admin)</strong>' +
+      '<span style="font-size:11.5px;color:var(--muted);">If an examiner uploaded the wrong document, administrators can manually re-upload the correct report here into Google Drive and the candidate registry.</span>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+      '<button type="button" class="primary btn-sm" onclick="openAdminReportUploadModal(\'Examiner 1\')" style="display:inline-flex;align-items:center;gap:6px;">' +
+        '<svg class="ui-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+        '<span>' + (r['Examiner 1 Report Link'] ? 'Replace Ex 1 Report' : 'Upload Ex 1 Report') + '</span>' +
+      '</button>' +
+      '<button type="button" class="primary btn-sm" onclick="openAdminReportUploadModal(\'Examiner 2\')" style="display:inline-flex;align-items:center;gap:6px;">' +
+        '<svg class="ui-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
+        '<span>' + (r['Examiner 2 Report Link'] ? 'Replace Ex 2 Report' : 'Upload Ex 2 Report') + '</span>' +
+      '</button>' +
+    '</div>' +
+  '</div>';
   var uploadWidgetHtml = '<div style="background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">' +
     '<div>' +
       '<strong style="color:var(--purple-deep);display:block;font-size:13px;">Direct Manuscript Draft Upload (Admin)</strong>' +
@@ -4470,7 +4614,7 @@ function documentsHtml(){
     '</button>' +
   '</div>';
 
-  return section('Document record','Open drafts, appointment letters, examiner reports and final submissions.',generateAllBannerHtml+'<div class="table-scroll"><table class="document-table"><thead><tr><th scope="col">Document</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>'+docs.map(function(d){return '<tr><th scope="row">'+esc(d.name)+'</th><td>'+esc(d.status)+'</td><td>'+d.action+'</td></tr>';}).join('')+'</tbody></table></div>')+section('Student draft document','Upload manuscript directly or view/edit the Google Drive draft link and filename.',uploadWidgetHtml+fieldGrid([['Student Draft Link','url:two'],['Draft File Name','text:two']]))+section('Submission access','The submission link is generated by the connected submission workflow.','<div class="submission-link">'+documentLink(r['Submission Portal Link'],'Open student submission portal')+'</div>'+fieldGrid([['Submission Enabled','select:submissionEnabled'],['Notes','textarea:wide']]))+section('Final document links','Save the final thesis, correction matrix and any additional examiner report.',fieldGrid(groups.documents.fields.filter(function(f){return ['Final Thesis Link','Correction Matrix Link','Examiner Report File'].indexOf(f[0])>=0;})));
+  return section('Document record','Open drafts, appointment letters, examiner reports and final submissions.',generateAllBannerHtml+'<div class="table-scroll"><table class="document-table"><thead><tr><th scope="col">Document</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>'+docs.map(function(d){return '<tr><th scope="row">'+esc(d.name)+'</th><td>'+esc(d.status)+'</td><td>'+d.action+'</td></tr>';}).join('')+'</tbody></table></div>')+section('Examiner evaluation reports','Directly upload or replace evaluation reports on behalf of examiners.',examinerUploadWidgetHtml)+section('Student draft document','Upload manuscript directly or view/edit the Google Drive draft link and filename.',uploadWidgetHtml+fieldGrid([['Student Draft Link','url:two'],['Draft File Name','text:two']]))+section('Submission access','The submission link is generated by the connected submission workflow.','<div class="submission-link">'+documentLink(r['Submission Portal Link'],'Open student submission portal')+'</div>'+fieldGrid([['Submission Enabled','select:submissionEnabled'],['Notes','textarea:wide']]))+section('Final document links','Save the final thesis, correction matrix and any additional examiner report.',fieldGrid(groups.documents.fields.filter(function(f){return ['Final Thesis Link','Correction Matrix Link','Examiner Report File'].indexOf(f[0])>=0;})));
 }
 function fieldValue(el){return el.type==='checkbox'?(el.checked?'External Examiner':'Internal Examiner'):el.value;}
 function panelAssignmentHtml(){
@@ -4480,16 +4624,25 @@ function panelAssignmentHtml(){
     {title:'Examiner 1',slot:'Examiner 1',fields:[['Examiner 1','examiner'],['Examiner 1 Email','email'],['Examiner 1 Role','select:panelRole']]},
     {title:'Examiner 2',slot:'Examiner 2',fields:[['Examiner 2','examiner'],['Examiner 2 Email','email'],['Examiner 2 Role','select:panelRole']]}
   ].map(function(person){
+    var portalBtn = (person.slot === 'Examiner 1' || person.slot === 'Examiner 2') ?
+      '<button type="button" class="secondary btn-sm" style="font-size:11.5px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;" onclick="openExaminerDirectPortal(\'' + esc(caseId) + '\',\'' + person.slot + '\')" title="Open direct evaluation portal for this examiner">' +
+        '<svg class="ui-icon" style="width:12px;height:12px;color:#4338ca;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+        'Open Portal ↗' +
+      '</button>' :
+      '<button type="button" class="secondary btn-sm" style="font-size:11.5px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;" onclick="openActiveChairPanel(\'' + esc(caseId) + '\')" title="Open portal for Chairperson">' +
+        '<svg class="ui-icon" style="width:12px;height:12px;color:#6b21a8;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+        'Open Chair Portal ↗' +
+      '</button>';
     var copyBtn = (person.slot === 'Examiner 1' || person.slot === 'Examiner 2') ?
       '<button type="button" class="secondary btn-sm" style="font-size:11.5px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;" onclick="copyExaminerDirectPortalLink(\'' + esc(caseId) + '\',\'' + person.slot + '\')" title="Copy 1-click direct access portal link for this examiner">' +
         '<svg class="ui-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
         'Copy Direct Link 📋' +
       '</button>' : '';
-    var previewBtn = '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px;">' +
+    var previewBtn = '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;justify-content:flex-end;flex-wrap:gap:6px;">' +
       '<button type="button" class="secondary btn-sm" style="font-size:11.5px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;" onclick="previewLetter(\'' + esc(caseId) + '\',\'' + person.slot + '\')">' +
         '<svg class="ui-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
         'Preview Appointment Letter ↗' +
-      '</button>' + copyBtn +
+      '</button>' + portalBtn + copyBtn +
     '</div>';
     return '<fieldset class="panel-person"><legend>'+esc(person.title)+'</legend><div class="panel-person-fields">'+person.fields.map(fieldHtml).join('')+'</div>' + previewBtn + '</fieldset>';
   }).join('')+'</div>';
@@ -5166,11 +5319,16 @@ function supervisionStudentHtml() {
           (supervisorEmail ? '<a href="mailto:' + esc(supervisorEmail) + '?subject=' + encodeURIComponent('[IUC Supervision Audit] ' + studentName) + '" style="font-size:12px;font-weight:600;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:3px;"><svg class="ui-icon" style="width:13px;height:13px;" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>' + esc(supervisorEmail) + '</a>' : '') +
         '</div>' +
         '<div style="font-size:12px;color:var(--muted);margin-top:2px;">Candidate: <strong>' + esc(studentName) + '</strong> (' + esc(studentKey || 'No ID') + ') · ' + esc(progName) + '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<button type="button" class="secondary" style="font-size:11.5px;min-height:32px;padding:4px 12px;display:inline-flex;align-items:center;gap:5px;" onclick="openActiveSupervisorPanel()" title="Open Supervisor Portal">' +
+          '<svg class="ui-icon" style="width:13px;height:13px;color:#4338ca;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+          '<span>Open Supervisor Panel ↗</span>' +
+        '</button>' +
+        '<button type="button" class="secondary" style="font-size:11.5px;min-height:32px;padding:4px 12px;" onclick="loadAdminSupervisionData()">' +
+          '<svg class="ui-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>' +
+          'Refresh Records' +
+        '</button>' +
       '</div>' +
-      '<button type="button" class="secondary" style="font-size:11.5px;min-height:32px;padding:4px 12px;" onclick="loadAdminSupervisionData()">' +
-        '<svg class="ui-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>' +
-        'Refresh Records' +
-      '</button>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">' +
       '<div style="background:var(--soft);padding:10px 14px;border-radius:8px;border:1px solid var(--line);">' +
@@ -5935,6 +6093,158 @@ function openCandidateDriveFolder(caseId) {
       showError(err);
     })
     .adminGetOrCreateStudentFolder(caseId);
+}
+
+function getStudentPanelUrl(studentKey, email) {
+  var baseUrl = (state.portalUrls && state.portalUrls.studentPortal) || 'https://script.google.com/a/innovative.edu.my/macros/s/AKfycbz46JF_uQ9yTLntM0bBTqzReywsKjVyM7yFthupgAS7StthHMviR3mI0ZgXC-U7COZq_A/exec';
+  var params = [];
+  if (studentKey) params.push('studentId=' + encodeURIComponent(studentKey));
+  if (email) params.push('email=' + encodeURIComponent(email));
+  if (!params.length) return baseUrl;
+  return baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + params.join('&');
+}
+
+function openStudentPanel(studentKey, email) {
+  var url = getStudentPanelUrl(studentKey, email);
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function openActiveStudentPanel() {
+  var r = state.record || {};
+  var sKey = r['Student Key'] || state.currentStudentKey || '';
+  var sEmail = r['Student Email'] || '';
+  if (!sEmail && sKey) {
+    var sObj = (state.students || []).find(function(s) { return s.studentKey === sKey; });
+    if (sObj) sEmail = sObj.studentEmail || '';
+  }
+  openStudentPanel(sKey, sEmail);
+}
+
+function openCandidateStudentPanel(caseId) {
+  if (!caseId) caseId = state.currentId || (state.record && state.record['Case ID']);
+  var r = state.record;
+  var sKey = (r && r['Student Key']) || state.currentStudentKey || '';
+  var sEmail = (r && r['Student Email']) || '';
+
+  if ((!sKey || !sEmail) && caseId) {
+    var cCase = (state.cases || []).find(function(c) { return c.caseId === caseId; });
+    if (cCase) {
+      if (!sKey) sKey = cCase.studentKey || '';
+      if (!sEmail) sEmail = cCase.studentEmail || '';
+    }
+  }
+  if ((!sKey || !sEmail) && sKey) {
+    var sObj = (state.students || []).find(function(s) { return s.studentKey === sKey; });
+    if (sObj) {
+      if (!sEmail) sEmail = sObj.studentEmail || '';
+    }
+  }
+  openStudentPanel(sKey, sEmail);
+}
+
+function getFacultyPanelUrl(name, email, options) {
+  var baseUrl = (state.portalUrls && state.portalUrls.examinerPortal) || 'https://script.google.com/macros/s/AKfycbww2UZcF2dDskUv0H_I6vcorINaJGlVk-Zm6PD948MVJ4NWVor8PNvtOEbLhwtMnnCv/exec';
+  var params = [];
+  if (name) params.push('name=' + encodeURIComponent(name));
+  if (email) params.push('email=' + encodeURIComponent(email));
+  if (options && options.caseId) params.push('case=' + encodeURIComponent(options.caseId));
+  if (options && options.view) params.push('view=' + encodeURIComponent(options.view));
+  if (!params.length) return baseUrl;
+  return baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + params.join('&');
+}
+
+function openFacultyPanel(name, email, options) {
+  var url = getFacultyPanelUrl(name, email, options);
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function openActiveSupervisorPanel(caseId) {
+  var targetCaseId = caseId || (state.record && state.record['Case ID']) || state.currentId;
+  var r = state.record || {};
+  var supervisorName = r['Supervisor'] || '';
+  var supervisorEmail = r['Supervisor Email'] || '';
+
+  if (!supervisorName || !supervisorEmail) {
+    var cObj = (state.cases || []).find(function(c) { return c.caseId === targetCaseId; });
+    if (cObj) {
+      if (!supervisorName) supervisorName = cObj.supervisor || '';
+      if (!supervisorEmail) supervisorEmail = cObj.supervisorEmail || '';
+    }
+  }
+  if (!supervisorName || !supervisorEmail) {
+    var sKey = (r && r['Student Key']) || state.currentStudentKey || '';
+    var sObj = (state.students || []).find(function(s) { return s.studentKey === sKey; });
+    if (sObj) {
+      if (!supervisorName) supervisorName = sObj.supervisor || '';
+      if (!supervisorEmail) supervisorEmail = sObj.supervisorEmail || '';
+    }
+  }
+  if (supervisorName && !supervisorEmail) {
+    var person = (state.directory || []).find(function(p) {
+      return (p.name || '').trim().toLowerCase() === supervisorName.trim().toLowerCase();
+    });
+    if (person) {
+      supervisorEmail = person.primaryEmail || person.email || person.alternateEmail || '';
+    }
+  }
+
+  if (!supervisorName) {
+    showNotice('No supervisor assigned to this candidate yet.', 'error');
+    return;
+  }
+  openFacultyPanel(supervisorName, supervisorEmail, { caseId: targetCaseId, view: 'supervisees' });
+}
+
+function openActiveChairPanel(caseId) {
+  var targetCaseId = caseId || (state.record && state.record['Case ID']) || state.currentId;
+  var r = state.record || {};
+  var chairName = r['Chairperson'] || '';
+  var chairEmail = r['Chair Email'] || '';
+
+  if (!chairName || !chairEmail) {
+    var cObj = (state.cases || []).find(function(c) { return c.caseId === targetCaseId; });
+    if (cObj) {
+      if (!chairName) chairName = cObj.chairperson || '';
+      if (!chairEmail) chairEmail = cObj.chairEmail || '';
+    }
+  }
+  if (chairName && !chairEmail) {
+    var person = (state.directory || []).find(function(p) {
+      return (p.name || '').trim().toLowerCase() === chairName.trim().toLowerCase();
+    });
+    if (person) {
+      chairEmail = person.primaryEmail || person.email || person.alternateEmail || '';
+    }
+  }
+
+  if (!chairName) {
+    showNotice('No chairperson assigned to this case yet.', 'error');
+    return;
+  }
+  openFacultyPanel(chairName, chairEmail, { caseId: targetCaseId });
+}
+
+function openExaminerDirectPortal(caseId, slot) {
+  var targetCaseId = caseId || (state.record && state.record['Case ID']) || state.currentId;
+  if (!targetCaseId) { showNotice('No active case selected.', 'error'); return;
+ }
+  setBusy(true);
+  showNotice('Generating evaluation access link for ' + slot + '...', 'loading');
+  google.script.run
+    .withSuccessHandler(function(r) {
+      setBusy(false);
+      if (r && r.ok && r.link) {
+        showNotice('Opening ' + slot + ' evaluation portal...', 'success');
+        window.open(r.link, '_blank', 'noopener,noreferrer');
+      } else {
+        showNotice((r && r.message) || 'Failed to open examiner portal.', 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      setBusy(false);
+      showError(err);
+    })
+    .getExaminerDirectLinkForAdmin(targetCaseId, slot);
 }
 
 function updateChangeRouteGuidance() {
@@ -6953,25 +7263,41 @@ var PROGRESS_STAGES = [
   { key: 'closed', label: '8. Closed stages' }
 ];
 
-function isDatePast(dateStr) {
+function isDatePast(dateStr, timeStr) {
   if (!dateStr) return false;
-  var parts = String(dateStr).trim().split(/[-/]/);
-  var d;
-  if (parts.length === 3) {
-    if (parts[0].length === 4) {
-      d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-    } else if (parts[2].length === 4) {
-      d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-    } else {
-      d = new Date(dateStr);
-    }
+  var s = String(dateStr).trim();
+  if (!s) return false;
+  var d = null;
+  var m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) {
+    d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
   } else {
-    d = new Date(dateStr);
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (m) {
+      d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    } else {
+      d = new Date(s);
+    }
   }
-  if (isNaN(d.getTime())) return false;
-  var today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return d < today;
+  if (!d || isNaN(d.getTime())) return false;
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (targetDate < today) return true;
+  if (targetDate > today) return false;
+  if (!timeStr) return false;
+  var timeText = String(timeStr).trim();
+  var tm = timeText.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+  if (!tm) return false;
+  var hour = parseInt(tm[1], 10);
+  var minute = parseInt(tm[2], 10);
+  var meridiem = String(tm[3] || '').toUpperCase();
+  if (meridiem) {
+    if (hour === 12) hour = 0;
+    if (meridiem === 'PM') hour += 12;
+  }
+  var targetTime = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, minute, 0, 0);
+  return targetTime <= now;
 }
 
 function progressStageForCase(item) {
@@ -6981,7 +7307,9 @@ function progressStageForCase(item) {
   var hasEx2 = Boolean(item.examiner2);
   var hasReport2 = hasEx2 ? Boolean(item.hasReport2) : true;
   var bothReports = hasReport1 && hasReport2;
-  var outcomeSent = Boolean(item.outcomeEmailSent);
+  var resStatusNorm = (item.resultEmailStatus || '').toLowerCase();
+  var isSentStatus = Boolean(resStatusNorm && resStatusNorm.indexOf('sent') >= 0 && resStatusNorm.indexOf('not') < 0 && resStatusNorm.indexOf('ready') < 0);
+  var outcomeSent = Boolean(item.outcomeEmailSent || isSentStatus || item.resultEmailSentAt || item.resultConfirmationLetterLink);
   var sessionStatus = (item.sessionStatus || '').toLowerCase();
   
   var hasChair = Boolean(item.chairperson);
@@ -6989,8 +7317,9 @@ function progressStageForCase(item) {
   var panelAppointed = hasChair && hasEx1 && (hasEx2 ? Boolean(item.examiner2) : true);
   var sessionScheduled = Boolean(item.sessionDate && item.startTime && item.endTime);
 
+  var sessionPassed = isDatePast(item.sessionDate, item.endTime || item.startTime);
   var hasVerdict = Boolean(item.resultScale && item.resultScale !== 'Not recorded');
-  var sessionConducted = ['completed', 'held', 'passed', 'conducted'].indexOf(sessionStatus) >= 0 || hasVerdict;
+  var sessionConducted = ['completed', 'held', 'passed', 'conducted'].indexOf(sessionStatus) >= 0 || hasVerdict || sessionPassed;
 
   var finalStatus = (item.finalSubmissionStatus || '').toLowerCase();
   var endorsement = (item.endorsementStatus || '').toLowerCase();
@@ -7512,9 +7841,11 @@ function navigatePage(page, options){
   }
 
   var host=document.getElementById('empty');host.className='student-directory';host.hidden=false;
-  host.innerHTML='<div class="dashboard-heading"><div><h2>Student Directory</h2><p>'+students.length+' of '+state.students.length+' students · Select a student to open their workspace.</p></div><div style="display:flex;gap:8px;align-items:center;"><button type="button" class="secondary" id="directoryBulkStudent" onclick="openBulkStudentModal()">Bulk Register</button><button type="button" class="primary" id="directoryNewStudent">+ Add student</button></div></div><div class="panel table-scroll"><table class="document-table"><thead><tr><th scope="col" class="sortable-th' + (currentSort.indexOf('name') === 0 ? ' active' : '') + '" id="sortStudentNameHeader" title="Click to sort by Student Name">Student Name <span class="sort-indicator">' + (currentSort === 'name_asc' ? '▲' : currentSort === 'name_desc' ? '▼' : '⇅') + '</span></th><th scope="col" class="sortable-th' + (currentSort.indexOf('id') === 0 ? ' active' : '') + '" id="sortStudentIdHeader" title="Click to sort by Student ID">Student ID <span class="sort-indicator">' + (currentSort === 'id_asc' ? '▲' : currentSort === 'id_desc' ? '▼' : '⇅') + '</span></th><th scope="col">Programme</th><th scope="col">Current stage</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>'+students.map(function(s){return '<tr><th scope="row"><b>'+esc(s.studentName)+'</b></th><td><code class="student-key" style="font-size:11.5px;padding:2px 6px;background:var(--purple-50);color:var(--purple-deep);border-radius:4px;display:inline-block;font-weight:600;">'+esc(s.studentKey)+'</code></td><td>'+esc(s.programme||'Not recorded')+'<br><span class="status-chip '+(s.progressionRoute==='Transfer'?'wait':'good')+'" style="font-size:9.5px;padding:1px 5px;margin-top:2px;">'+esc(s.progressionRoute||'Standard')+'</span></td><td>'+formatStudentStageChip(s)+'</td><td>'+esc(s.studentStatus||'Active')+'</td><td>'+(s.activeCaseId?'<button class="secondary" type="button" data-open-student="'+esc(s.activeCaseId)+'">Open workspace</button>':'<span class="hint">No defence case linked</span>')+'</td></tr>';}).join('')+'</tbody></table>'+(students.length?'':'<p class="directory-empty">'+(state.students.length?'No students match your search.':'No students registered yet. Add a student to get started.')+'</p>')+'</div>';
+  host.innerHTML='<div class="dashboard-heading"><div><h2>Student Directory</h2><p>'+students.length+' of '+state.students.length+' students · Select a student to open their workspace.</p></div><div style="display:flex;gap:8px;align-items:center;"><button type="button" class="secondary" id="directoryBulkStudent" onclick="openBulkStudentModal()">Bulk Register</button><button type="button" class="primary" id="directoryNewStudent">+ Add student</button></div></div><div class="panel table-scroll"><table class="document-table"><thead><tr><th scope="col" class="sortable-th' + (currentSort.indexOf('name') === 0 ? ' active' : '') + '" id="sortStudentNameHeader" title="Click to sort by Student Name">Student Name <span class="sort-indicator">' + (currentSort === 'name_asc' ? '▲' : currentSort === 'name_desc' ? '▼' : '⇅') + '</span></th><th scope="col" class="sortable-th' + (currentSort.indexOf('id') === 0 ? ' active' : '') + '" id="sortStudentIdHeader" title="Click to sort by Student ID">Student ID <span class="sort-indicator">' + (currentSort === 'id_asc' ? '▲' : currentSort === 'id_desc' ? '▼' : '⇅') + '</span></th><th scope="col">Programme</th><th scope="col">Current stage</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>'+students.map(function(s){return '<tr><th scope="row"><b>'+esc(s.studentName)+'</b></th><td><code class="student-key" style="font-size:11.5px;padding:2px 6px;background:var(--purple-50);color:var(--purple-deep);border-radius:4px;display:inline-block;font-weight:600;">'+esc(s.studentKey)+'</code></td><td>'+esc(s.programme||'Not recorded')+'<br><span class="status-chip '+(s.progressionRoute==='Transfer'?'wait':'good')+'" style="font-size:9.5px;padding:1px 5px;margin-top:2px;">'+esc(s.progressionRoute||'Standard')+'</span></td><td>'+formatStudentStageChip(s)+'</td><td>'+esc(s.studentStatus||'Active')+'</td><td><div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">'+(s.activeCaseId?'<button class="secondary" type="button" data-open-student="'+esc(s.activeCaseId)+'">Open workspace</button>':'<span class="hint">No case linked</span>')+'<button class="secondary" type="button" style="padding:0 8px;font-size:11px;" title="Open Student Panel for '+esc(s.studentName)+'" data-open-student-portal="'+esc(s.studentKey)+'" data-student-email="'+esc(s.studentEmail||'')+'"><svg class="ui-icon" style="width:11px;height:11px;vertical-align:-1px;margin-right:2px;color:var(--purple-deep);" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>Student Panel ↗</span></button>' + (s.supervisor ? '<button class="secondary" type="button" style="padding:0 8px;font-size:11px;" title="Open Supervisor Panel for ' + esc(s.supervisor) + '" data-open-supervisor-portal="' + esc(s.supervisor) + '" data-supervisor-email="' + esc(s.supervisorEmail||'') + '" data-case-id="' + esc(s.activeCaseId||'') + '"><svg class="ui-icon" style="width:11px;height:11px;vertical-align:-1px;margin-right:2px;color:#4338ca;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>Supervisor Panel ↗</span></button>' : '') + '</div></td></tr>';}).join('')+'</tbody></table>'+(students.length?'':'<p class="directory-empty">'+(state.students.length?'No students match your search.':'No students registered yet. Add a student to get started.')+'</p>')+'</div>';
 
   host.querySelectorAll('[data-open-student]').forEach(function(b){b.onclick=function(){if(canLeave())loadCase(b.dataset.openStudent);};});
+  host.querySelectorAll('[data-open-student-portal]').forEach(function(b){b.onclick=function(){openStudentPanel(b.getAttribute('data-open-student-portal'),b.getAttribute('data-student-email'));};});
+  host.querySelectorAll('[data-open-supervisor-portal]').forEach(function(b){b.onclick=function(){openFacultyPanel(b.getAttribute('data-open-supervisor-portal'),b.getAttribute('data-supervisor-email'),{caseId:b.getAttribute('data-case-id'),view:'supervisees'});};});
   document.getElementById('directoryNewStudent').onclick=function(){if(canLeave()){state.lastSaved='';renderForm(emptyRecord(),true);}};
 
   var nameTh = document.getElementById('sortStudentNameHeader');
@@ -7973,6 +8304,18 @@ document.getElementById('directoryCancelButton').addEventListener('click',resetD
 document.getElementById('directoryFilter').addEventListener('input',renderDirectory);
 document.getElementById('directoryForm').addEventListener('submit',saveDirectoryPerson);
 document.getElementById('search').addEventListener('input',renderCases);
+var opSpBtn = document.getElementById('openStudentPanelBtn');
+if (opSpBtn) {
+  opSpBtn.addEventListener('click', function() {
+    openActiveStudentPanel();
+  });
+var opSupBtn = document.getElementById('openSupervisorPanelBtn');
+if (opSupBtn) {
+  opSupBtn.addEventListener('click', function() {
+    openActiveSupervisorPanel();
+  });
+}
+}
 document.getElementById('editStudentButton').addEventListener('click',editStudentDetails);
 document.getElementById('deleteStudentButton').addEventListener('click',function(){if(canLeave())deleteStudent();});
 document.getElementById('caseForm').addEventListener('submit',function(e){e.preventDefault();saveRecord();});
@@ -8658,6 +9001,7 @@ function loadAdminSupervisionData() {
 
       adminSupervisionState.logs = response.supervisionLogs || [];
       adminSupervisionState.reports = response.progressReports || [];
+      adminSupervisionState.requests = response.academicRequests || [];
       adminSupervisionState.stats = response.stats || {};
       adminSupervisionState.loaded = true;
 
@@ -8666,7 +9010,7 @@ function loadAdminSupervisionData() {
       var elTotal = document.getElementById('adminSupTotalLogs');
       if (elTotal) elTotal.textContent = stats.totalLogs || 0;
       var elVerSub = document.getElementById('adminSupVerifiedSub');
-      if (elVerSub) elVerSub.textContent = (stats.verifiedLogs || 0) + ' verified by supervisor';
+      if (elVerSub) elVerSub.textContent = (stats.verifiedLogs || 0) + ' verified';
 
       var elPend = document.getElementById('adminSupPendingLogs');
       if (elPend) elPend.textContent = stats.pendingVerificationLogs || 0;
@@ -8687,6 +9031,7 @@ function loadAdminSupervisionData() {
       populateAdminSupervisionFilters();
       renderAdminMeetingsTable();
       renderAdminProgressReportsTable();
+      renderAdminRequestsTable();
       if (state.activeTab === 'supervision' && document.getElementById('caseForm') && !document.getElementById('caseForm').hidden) {
         renderWorkspace();
       }
@@ -8705,20 +9050,18 @@ function switchAdminSupervisionTab(tab) {
   adminSupervisionState.activeTab = tab;
   var btnM = document.getElementById('adminTabMeetingsBtn');
   var btnP = document.getElementById('adminTabProgressBtn');
+  var btnR = document.getElementById('adminTabRequestsBtn');
   var pM = document.getElementById('adminMeetingsPanel');
   var pP = document.getElementById('adminProgressPanel');
+  var pR = document.getElementById('adminRequestsPanel');
 
-  if (tab === 'meetings') {
-    if (btnM) { btnM.className = 'primary'; }
-    if (btnP) { btnP.className = 'secondary'; }
-    if (pM) pM.style.display = 'block';
-    if (pP) pP.style.display = 'none';
-  } else {
-    if (btnM) { btnM.className = 'secondary'; }
-    if (btnP) { btnP.className = 'primary'; }
-    if (pM) pM.style.display = 'none';
-    if (pP) pP.style.display = 'block';
-  }
+  if (btnM) btnM.className = (tab === 'meetings' ? 'primary' : 'secondary');
+  if (btnP) btnP.className = (tab === 'progress' ? 'primary' : 'secondary');
+  if (btnR) btnR.className = (tab === 'requests' ? 'primary' : 'secondary');
+
+  if (pM) pM.style.display = (tab === 'meetings' ? 'block' : 'none');
+  if (pP) pP.style.display = (tab === 'progress' ? 'block' : 'none');
+  if (pR) pR.style.display = (tab === 'requests' ? 'block' : 'none');
 }
 
 function populateAdminSupervisionFilters() {
@@ -8784,10 +9127,14 @@ function renderAdminMeetingsTable() {
   }
 
   tbody.innerHTML = logs.map(function(l) {
-    var isVer = (l.endorsementStatus || '').toLowerCase().indexOf('verified') >= 0;
-    var badge = isVer
-      ? '<span class="status-badge" style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;">Verified</span>'
-      : '<span class="status-badge" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;">Pending</span>';
+    var isSupVer = (l.endorsementStatus || '').toLowerCase().indexOf('verified') >= 0;
+    var isAdminVer = (l.adminStatus || '').toLowerCase().indexOf('verified') >= 0;
+    var supBadge = isSupVer
+      ? '<span class="status-badge" style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;" title="Supervisor: ' + esc(l.supervisorRemarks || 'None') + '">Sup: Verified</span>'
+      : '<span class="status-badge" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;">Sup: Pending</span>';
+    var admBadge = isAdminVer
+      ? '<span class="status-badge" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;" title="Admin: ' + esc(l.adminRemarks || 'None') + '">Admin: Verified</span>'
+      : '<button type="button" class="secondary" style="padding:2px 8px;font-size:11px;min-height:24px;" onclick="acknowledgeAdminLogPrompt(\'' + esc(l.logId) + '\',\'' + esc(l.studentName) + '\')">Verify</button>';
 
     return '<tr>' +
       '<td><strong>' + esc(l.meetingDate) + '</strong></td>' +
@@ -8797,9 +9144,75 @@ function renderAdminMeetingsTable() {
       '<td style="max-width:220px;">' + esc(l.topics) + '</td>' +
       '<td style="max-width:180px;">' + esc(l.actions || '-') + '</td>' +
       '<td>' + esc(l.nextMeetingDate || '-') + '</td>' +
-      '<td>' + badge + '</td>' +
+      '<td>' + supBadge + ' ' + admBadge + '</td>' +
     '</tr>';
   }).join('');
+}
+
+function acknowledgeAdminLogPrompt(logId, studentName) {
+  var remarks = prompt('Enter administrative verification remarks for ' + studentName + ':', 'Verified by Postgraduate Office');
+  if (remarks === null) return;
+  setBusy(true);
+  google.script.run
+    .withSuccessHandler(function(res) {
+      setBusy(false);
+      showNotice('Meeting record acknowledged successfully.', 'success');
+      loadAdminSupervisionData();
+    })
+    .withFailureHandler(function(err) {
+      setBusy(false);
+      showNotice((err && err.message) || String(err), 'error');
+    })
+    .adminAcknowledgeSupervisionLog({ logId: logId, studentName: studentName, remarks: remarks, status: 'Verified by Admin' });
+}
+
+function renderAdminRequestsTable() {
+  var tbody = document.getElementById('adminRequestsTableBody');
+  if (!tbody) return;
+  var requests = adminSupervisionState.requests || [];
+  if (!requests.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);font-style:italic;">No student academic requests on record.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = requests.map(function(r) {
+    var isResolved = (r.status || '').toLowerCase().indexOf('approved') >= 0 || (r.status || '').toLowerCase().indexOf('rejected') >= 0;
+    var badge = (r.status || '').toLowerCase().indexOf('approved') >= 0
+      ? '<span class="status-badge" style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;">Approved</span>'
+      : (r.status || '').toLowerCase().indexOf('rejected') >= 0
+      ? '<span class="status-badge" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;">Rejected</span>'
+      : '<span class="status-badge" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;">Pending Review</span>';
+    var actionBtn = isResolved
+      ? '<span style="font-size:11px;color:var(--muted);">' + esc(r.resolutionDate || '') + (r.adminRemarks ? '<br>(' + esc(r.adminRemarks) + ')' : '') + '</span>'
+      : '<button type="button" class="primary" style="padding:2px 8px;font-size:11px;min-height:24px;" onclick="resolveAdminRequestPrompt(\'' + esc(r.requestId) + '\',\'' + esc(r.studentName) + '\')">Resolve</button>';
+    return '<tr>' +
+      '<td><strong>' + esc(r.timestamp ? r.timestamp.slice(0, 10) : '') + '</strong></td>' +
+      '<td><strong>' + esc(r.studentName) + '</strong><br><span style="font-size:11px;color:var(--muted);">' + esc(r.programme || '') + '</span></td>' +
+      '<td>' + esc(r.requestType) + '</td>' +
+      '<td style="max-width:220px;"><strong>' + esc(r.subject) + '</strong><br><span style="font-size:11px;color:var(--muted);">' + esc(r.details || '') + '</span></td>' +
+      '<td>' + (r.attachmentUrl ? '<a href="' + esc(r.attachmentUrl) + '" target="_blank" rel="noopener">Attachment</a>' : '-') + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' + actionBtn + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function resolveAdminRequestPrompt(requestId, studentName) {
+  var decision = confirm('Click OK to Approve this request, or Cancel to Reject it.');
+  var status = decision ? 'Approved' : 'Rejected';
+  var remarks = prompt('Enter resolution remarks for ' + studentName + ' (' + status + '):', status + ' by Postgraduate Office');
+  if (remarks === null) return;
+  setBusy(true);
+  google.script.run
+    .withSuccessHandler(function(res) {
+      setBusy(false);
+      showNotice('Academic request marked as ' + status + '.', 'success');
+      loadAdminSupervisionData();
+    })
+    .withFailureHandler(function(err) {
+      setBusy(false);
+      showNotice((err && err.message) || String(err), 'error');
+    })
+    .adminResolveAcademicRequest({ requestId: requestId, status: status, remarks: remarks });
 }
 
 function filterAdminProgress() {
@@ -9103,6 +9516,264 @@ function submitAdminDraftUpload(event) {
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'Upload & Sync Draft';
+    }
+    alert('Failed to read the selected file.');
+  };
+
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Client handlers for Direct Admin Examiner Report Upload / Replacement
+ */
+var adminReportUploadState = {
+  slot: 'Examiner 1',
+  file: null,
+  fileName: '',
+  mimeType: ''
+};
+
+function openAdminReportUploadModal(slot) {
+  var r = state.record || {};
+  var caseId = r['Case ID'] || state.currentId || '';
+  if (!caseId) {
+    alert('Please select or open an active candidate stage first.');
+    return;
+  }
+
+  adminReportUploadState = {
+    slot: slot || 'Examiner 1',
+    file: null,
+    fileName: '',
+    mimeType: ''
+  };
+
+  var slotSelect = document.getElementById('adminReportSlotSelect');
+  if (slotSelect) {
+    slotSelect.value = adminReportUploadState.slot;
+  }
+
+  var nameEl = document.getElementById('uploadReportCandidateName');
+  if (nameEl) nameEl.textContent = r['Student Name'] || 'Candidate';
+  var typeEl = document.getElementById('uploadReportDefenceType');
+  if (typeEl) typeEl.textContent = r['Defence Type'] || 'Defence Stage';
+  var idEl = document.getElementById('uploadReportCaseId');
+  if (idEl) idEl.textContent = caseId;
+
+  var fileInput = document.getElementById('adminReportFileInput');
+  if (fileInput) fileInput.value = '';
+  var label = document.getElementById('adminReportFileChosenLabel');
+  if (label) label.textContent = 'Supports PDF, DOCX, DOC (up to 20 MB)';
+
+  var btn = document.getElementById('uploadReportSubmitBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Upload & Record Report';
+  }
+
+  var notice = document.getElementById('uploadReportNotice');
+  if (notice) notice.style.display = 'none';
+
+  var resetChk = document.getElementById('adminReportResetEmailStatus');
+  if (resetChk) {
+    var emailStatus = normaliseStatus(r['Result Email Status']);
+    resetChk.checked = (emailStatus === 'ready to send');
+  }
+
+  updateAdminReportModalSlotDetails();
+
+  var dlg = document.getElementById('adminReportUploadModal');
+  if (dlg) dlg.showModal();
+}
+
+function closeAdminReportUploadModal() {
+  var dlg = document.getElementById('adminReportUploadModal');
+  if (dlg) dlg.close();
+}
+
+function handleAdminReportSlotChange() {
+  var slotSelect = document.getElementById('adminReportSlotSelect');
+  if (slotSelect) {
+    adminReportUploadState.slot = slotSelect.value;
+  }
+  updateAdminReportModalSlotDetails();
+}
+
+function updateAdminReportModalSlotDetails() {
+  var r = state.record || {};
+  var isEx1 = String(adminReportUploadState.slot).indexOf('1') >= 0;
+  var examinerName = isEx1 ? r['Examiner 1'] : r['Examiner 2'];
+  var examinerEmail = isEx1 ? r['Examiner 1 Email'] : r['Examiner 2 Email'];
+  var examinerRole = isEx1 ? r['Examiner 1 Role'] : r['Examiner 2 Role'];
+  var currentLink = isEx1 ? r['Examiner 1 Report Link'] : r['Examiner 2 Report Link'];
+  var currentStatus = isEx1 ? r['Examiner 1 Report Status'] : r['Examiner 2 Report Status'];
+
+  var detailEl = document.getElementById('adminReportExaminerDetail');
+  if (detailEl) {
+    if (examinerName) {
+      detailEl.innerHTML = 'Appointed: <b>' + esc(examinerName) + '</b> (' + esc(examinerRole || 'Examiner') + ') &bull; ' + esc(examinerEmail || 'No email');
+    } else {
+      detailEl.innerHTML = '<span style="color:#b45309;">Notice: No examiner currently assigned to this slot.</span>';
+    }
+  }
+
+  var statusBox = document.getElementById('adminReportCurrentStatusBox');
+  var linkEl = document.getElementById('adminReportCurrentFileLink');
+  if (statusBox && linkEl) {
+    if (currentLink) {
+      statusBox.style.display = 'block';
+      linkEl.innerHTML = '<a href="' + esc(currentLink) + '" target="_blank" rel="noopener noreferrer" style="color:#15803d;font-weight:700;word-break:break-all;">' + esc(currentLink) + ' ↗</a> (Status: ' + esc(currentStatus || 'Submitted') + ')';
+    } else {
+      statusBox.style.display = 'none';
+      linkEl.innerHTML = '';
+    }
+  }
+}
+
+function handleAdminReportFileSelected(event) {
+  var file = event.target.files && event.target.files[0];
+  var label = document.getElementById('adminReportFileChosenLabel');
+  var btn = document.getElementById('uploadReportSubmitBtn');
+
+  if (!file) {
+    adminReportUploadState.file = null;
+    if (label) label.textContent = 'Supports PDF, DOCX, DOC (up to 20 MB)';
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  var maxBytes = 20 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    alert('The selected file exceeds the 20 MB maximum size limit. Please choose a smaller file.');
+    event.target.value = '';
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  if (!/\.(pdf|doc|docx)$/i.test(file.name)) {
+    alert('Only PDF, DOC, and DOCX files are accepted.');
+    event.target.value = '';
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  adminReportUploadState.file = file;
+  adminReportUploadState.fileName = file.name;
+  adminReportUploadState.mimeType = file.type || 'application/pdf';
+
+  var sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  if (label) label.innerHTML = '<strong style="color:var(--primary);">' + esc(file.name) + '</strong> (' + sizeMB + ' MB ready for upload)';
+  if (btn) btn.disabled = false;
+}
+
+function submitAdminReportUpload(event) {
+  event.preventDefault();
+  var file = adminReportUploadState.file;
+  if (!file) {
+    alert('Please select an examiner evaluation report file to upload.');
+    return;
+  }
+
+  var r = state.record || {};
+  var caseId = r['Case ID'] || state.currentId || '';
+  if (!caseId) {
+    alert('Active case record not found.');
+    return;
+  }
+
+  var slot = adminReportUploadState.slot || 'Examiner 1';
+  var isEx1 = slot.indexOf('1') >= 0;
+  var currentLink = isEx1 ? r['Examiner 1 Report Link'] : r['Examiner 2 Report Link'];
+  var isReplacement = Boolean(currentLink);
+
+  var btn = document.getElementById('uploadReportSubmitBtn');
+  var notice = document.getElementById('uploadReportNotice');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Uploading to Google Drive...';
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var dataUrl = e.target.result;
+      var base64 = dataUrl.split(',')[1];
+      var resetEmail = document.getElementById('adminReportResetEmailStatus') ? document.getElementById('adminReportResetEmailStatus').checked : false;
+
+      var payload = {
+        caseId: caseId,
+        slot: slot,
+        fileName: file.name,
+        mimeType: file.type || 'application/pdf',
+        fileData: base64,
+        isReplacement: isReplacement,
+        resetEmailStatus: resetEmail,
+        expectedRevision: state.record && state.record._revision
+      };
+
+      if (btn) btn.textContent = 'Processing & Updating Registry...';
+
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Upload & Record Report';
+          }
+          if (resp && resp.ok) {
+            if (isEx1) {
+              state.record['Examiner 1 Report Link'] = resp.fileUrl;
+              state.record['Examiner 1 Report Status'] = 'Submitted';
+            } else {
+              state.record['Examiner 2 Report Link'] = resp.fileUrl;
+              state.record['Examiner 2 Report Status'] = 'Submitted';
+            }
+            if (resp.caseData) {
+              state.record = resp.caseData;
+              savedRecord = cloneRecord(resp.caseData);
+            }
+            if (resp.cases) state.cases = resp.cases;
+
+            closeAdminReportUploadModal();
+            renderActivePanel();
+            renderCases();
+            showNotice(resp.message || (slot + ' report uploaded and recorded successfully.'), 'success');
+          } else {
+            if (notice) {
+              notice.style.display = 'block';
+              notice.style.background = '#fef2f2';
+              notice.style.color = '#991b1b';
+              notice.style.border = '1px solid #fecaca';
+              notice.textContent = (resp && resp.message) || 'Upload failed.';
+            }
+          }
+        })
+        .withFailureHandler(function(err) {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Upload & Record Report';
+          }
+          if (notice) {
+            notice.style.display = 'block';
+            notice.style.background = '#fef2f2';
+            notice.style.color = '#991b1b';
+            notice.style.border = '1px solid #fecaca';
+            notice.textContent = 'Error: ' + (err.message || String(err));
+          }
+        })
+        .adminUploadExaminerReport(payload);
+    } catch (readErr) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Upload & Record Report';
+      }
+      alert('Error processing file: ' + readErr.message);
+    }
+  };
+
+  reader.onerror = function() {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Upload & Record Report';
     }
     alert('Failed to read the selected file.');
   };
@@ -9419,8 +10090,8 @@ function renderDocumentLogList() {
 function workflowModel(){return state.record&&state.record._workflow;}
 const workflowOldNextAction=nextAction;
 nextAction=function(){const m=workflowModel();if(!m)return workflowOldNextAction();const t=m.nextAdmin;return t?{text:t.label+'. Responsible: '+t.owner+'.',tab:t.tab,label:t.label}:{text:m.label+'. Review the current evidence and activity.',tab:'result',label:'View stage record'};};
-const workflowOldCloseState=caseCloseState;
-caseCloseState=function(){const m=workflowModel();if(!m)return workflowOldCloseState();const r=state.record;return{ready:m.closeReady,missing:m.closeMissing,report1:!!r['Examiner 1 Report Link'],report2:!r['Examiner 2']||!!r['Examiner 2 Report Link'],outcomeEmail:r['Result Email Status']==='Sent'&&!!r['Result Email Sent At']};};
+function wfReportReceivedUi_(link, status){ const s = String(status||'').trim().toLowerCase(); return (Boolean(link && /^https?:\/\//i.test(link)) && ['pending','awaiting submission','not submitted','unsubmitted'].indexOf(s) < 0) || ['submitted','received','uploaded','complete','completed','verified'].indexOf(s) >= 0; }
+caseCloseState=function(){const m=workflowModel();if(!m)return workflowOldCloseState();const r=state.record;return{ready:m.closeReady,missing:m.closeMissing,report1:wfReportReceivedUi_(r['Examiner 1 Report Link'],r['Examiner 1 Report Status']),report2:!r['Examiner 2']||wfReportReceivedUi_(r['Examiner 2 Report Link'],r['Examiner 2 Report Status']),outcomeEmail:r['Result Email Status']==='Sent'&&!!r['Result Email Sent At']};};
 function workflowPanelHtml(mode){
   const m=workflowModel();if(!m)return '';
   const r=state.record,notices=[m.ownNotice,m.vivaNotice].filter(n=>n&&n.status==='Pending');
@@ -9436,6 +10107,9 @@ function workflowPanelHtml(mode){
     });
   }else{
     html+='<p class="workflow-blockers">'+(m.closeMissing.length?'Outstanding closure requirements: '+esc(m.closeMissing.join(', '))+'.':'Closure requirements are satisfied.')+'</p>';
+    if(!m.verified && m.closeMissing.filter(x=>x!=='explicit verification of the current evidence').length===0){
+      html+='<div class="workflow-verification-box" style="margin:12px 0;"><label for="workflow-verification-note">Verification evidence or remarks</label><textarea id="workflow-verification-note" placeholder="Record verification evidence or remarks for the current submission"></textarea><div class="workflow-actions"><button class="primary" type="button" data-workflow-verify>Record verification</button>'+(m.decision.corrections?'<button class="secondary" type="button" data-workflow-request-changes>Request further amendments</button>':'')+'</div></div>';
+    }
     if(m.stageComplete&&r['Defence Type']==='Viva Voce'){
       const type=!m.finalDeposit?'FINAL_DEPOSIT':!m.senate?'SENATE_APPROVED':!m.programmeComplete?'PROGRAMME_COMPLETED':'';
       const labels={FINAL_DEPOSIT:'Record final deposit and clearance',SENATE_APPROVED:'Record Senate approval',PROGRAMME_COMPLETED:'Confirm programme completion'};
@@ -9448,7 +10122,7 @@ function workflowPanelHtml(mode){
 const workflowOldOverview=overviewHtml;
 overviewHtml=function(){return workflowPanelHtml('overview')+'<details class="workflow-utility"><summary>Case details and existing records</summary>'+workflowOldOverview()+'</details>';};
 const workflowOldResult=resultHtml;
-resultHtml=workflowOldResult;
+resultHtml=function(){return workflowPanelHtml('result')+workflowOldResult();};
 const workflowOldStage=progressStageForCase;
 progressStageForCase=function(item){
   if(!item.workflow)return workflowOldStage(item);
@@ -9477,12 +10151,13 @@ renderDashboard=function(){
 };
 document.addEventListener('input',function(e){const box=e.target.closest('.workflow-panel');if(box){const error=box.querySelector('.workflow-error');if(error)error.textContent='';}});
 document.addEventListener('click',function(e){
-  const b=e.target.closest('[data-workflow-review],[data-workflow-verify],[data-workflow-clearance]');if(!b||state.busy)return;
+  const b=e.target.closest('[data-workflow-review],[data-workflow-verify],[data-workflow-request-changes],[data-workflow-clearance]');if(!b||state.busy)return;
   if(isDirty()){showNotice('Save or discard your case edits before recording a workflow decision.','error');return;}
   const box=b.closest('.workflow-panel'),payload={caseId:state.currentId,expectedRevision:state.record._revision};
   let method;
   if(b.dataset.workflowReview){method='reviewDefenceNotice';payload.noticeId=b.dataset.notice;payload.stage=b.dataset.noticeStage;payload.decision=b.dataset.workflowReview;payload.note=box.querySelector('#workflow-review-note').value.trim();}
   else if(b.hasAttribute('data-workflow-verify')){method='recordDefenceVerification';payload.note=box.querySelector('#workflow-verification-note').value.trim();}
+  else if(b.hasAttribute('data-workflow-request-changes')){method='requestCorrectionsChanges';payload.note=box.querySelector('#workflow-verification-note').value.trim();}
   else{method='recordProgrammeClearance';payload.type=b.dataset.workflowClearance;payload.date=box.querySelector('#workflow-clearance-date').value;payload.reference=box.querySelector('#workflow-clearance-reference').value.trim();}
   if((method!=='recordProgrammeClearance'&&!payload.note)||(method==='recordProgrammeClearance'&&(!payload.date||!payload.reference))){box.querySelector('.workflow-error').textContent='Record the required evidence before confirming.';return;}
   setBusy(true);google.script.run.withSuccessHandler(applyAction).withFailureHandler(showError)[method](payload);

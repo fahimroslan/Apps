@@ -9,7 +9,8 @@ const ADMIN_CONFIG = {
   LOG_SHEET: 'Admin Action Log',
   HEADER_ROW: 3,
   ALLOWED_ADMINS: ['fahimroslan.ipgs@innovative.edu.my'],
-  PANEL_PORTAL_URL: 'https://script.google.com/macros/s/AKfycbww2UZcF2dDskUv0H_I6vcorINaJGlVk-Zm6PD948MVJ4NWVor8PNvtOEbLhwtMnnCv/exec'
+  PANEL_PORTAL_URL: 'https://script.google.com/macros/s/AKfycbww2UZcF2dDskUv0H_I6vcorINaJGlVk-Zm6PD948MVJ4NWVor8PNvtOEbLhwtMnnCv/exec',
+  STUDENT_PORTAL_URL: 'https://script.google.com/a/innovative.edu.my/macros/s/AKfycbz46JF_uQ9yTLntM0bBTqzReywsKjVyM7yFthupgAS7StthHMviR3mI0ZgXC-U7COZq_A/exec'
 };
 
 const ADMIN_DIRECTORY_ROLES = ['Supervisor','Panel','Admin'];
@@ -22,6 +23,7 @@ ADMIN_CONFIG.EMAIL_TEMPLATE_SHEET = 'Email Templates';
 ADMIN_CONFIG.EMAIL_SENDER_SHEET = 'Email Senders';
 ADMIN_CONFIG.SUPERVISION_SHEET = 'Supervision Logs';
 ADMIN_CONFIG.PROGRESS_SHEET = 'Progress Reports';
+ADMIN_CONFIG.REQUEST_SHEET = 'Student Requests';
 ADMIN_HEADERS.push('Student Key','Progression Route','Stage Attempt','Case Status','Meeting Platform','Chair Appointment Letter Link','Examiner 1 Appointment Letter Link','Examiner 2 Appointment Letter Link',
     'Candidate Notice Sent At','Additional Invitees','Result Confirmation Letter Link','Candidate Notice Status','Candidate Notice Letter Link');
 const ADMIN_STUDENT_HEADERS = ['Student Key','Student Name','Student Email','Programme','Research Title','Supervisor','Supervisor Email','Progression Route','Student Status','Student Folder ID','Registered At','Updated At'];
@@ -187,6 +189,11 @@ function doPost(e) {
     // 1. Google Drive Zero-Cost File Upload Action
     if (payload.action === 'uploadDraft') {
       const uploadResult = adminUploadStudentDraft(payload);
+      return ContentService.createTextOutput(JSON.stringify(uploadResult))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (payload.action === 'uploadExaminerReport') {
+      const uploadResult = adminUploadExaminerReport(payload);
       return ContentService.createTextOutput(JSON.stringify(uploadResult))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -465,6 +472,50 @@ function saveAdminCaseLegacy_(payload,lockHeld) {
       else cell.setValue(next);
     });
 
+    if (!isNew) {
+      const arrangementFields = [
+        'Session Date', 'Start Time', 'End Time', 'Meeting Mode', 'Venue', 'Google Meet Link',
+        'Chairperson', 'Chair Email', 'Examiner 1', 'Examiner 1 Role', 'Examiner 1 Email',
+        'Examiner 2', 'Examiner 2 Role', 'Examiner 2 Email', 'Supervisor', 'Supervisor Email'
+      ];
+      const arrangementChanged = changed.some(function(h) { return arrangementFields.indexOf(h) !== -1; });
+      if (arrangementChanged) {
+        if (!values['Calendar Invitation Status'] && map['Calendar Invitation Status']) {
+          const oldCal = String(oldValues[map['Calendar Invitation Status'] - 1] || '').trim().toLowerCase();
+          if (oldCal && oldCal !== 'not scheduled') {
+            sheet.getRange(row, map['Calendar Invitation Status']).setValue('Updated');
+            if (changed.indexOf('Calendar Invitation Status') === -1) changed.push('Calendar Invitation Status');
+          }
+        }
+        if (!values['Invitation Email Status'] && map['Invitation Email Status']) {
+          const oldInv = String(oldValues[map['Invitation Email Status'] - 1] || '').trim().toLowerCase();
+          if (oldInv && oldInv !== 'not prepared') {
+            sheet.getRange(row, map['Invitation Email Status']).setValue('Ready to Send');
+            if (changed.indexOf('Invitation Email Status') === -1) changed.push('Invitation Email Status');
+          }
+        }
+        if (!values['Candidate Notice Status'] && map['Candidate Notice Status']) {
+          const oldCand = String(oldValues[map['Candidate Notice Status'] - 1] || '').trim().toLowerCase();
+          if (oldCand && oldCand !== 'not prepared') {
+            sheet.getRange(row, map['Candidate Notice Status']).setValue('Not prepared');
+            if (changed.indexOf('Candidate Notice Status') === -1) changed.push('Candidate Notice Status');
+          }
+        }
+        try {
+          const props = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) ? PropertiesService.getScriptProperties() : null;
+          if (props) {
+            const allProps = props.getProperties();
+            const prefix = 'PANEL_INVITE_DISPATCHED_' + caseId + '_';
+            Object.keys(allProps).forEach(function(k) {
+              if (k.indexOf(prefix) === 0) props.deleteProperty(k);
+            });
+          }
+        } catch (e) {
+          console.warn('Could not reset panel invitation properties: ' + e.message);
+        }
+      }
+    }
+
     if(isNew){['Student Key','Stage Attempt','Defence Type','Progression Route'].forEach(function(h){if(map[h])sheet.getRange(row,map[h]).setValue(String(values[h]||''));});if(map['Case Status'])sheet.getRange(row,map['Case Status']).setValue('Active');}
     const now = new Date();
     SpreadsheetApp.flush();
@@ -559,7 +610,7 @@ function scheduleAdminCase(caseId, clientData) {
   const map = record.map;
   const now = new Date();
   record.sheet.getRange(record.row, map['Calendar Invitation Status']).setValue('Invitations sent');
-  if (['Passed','Cancelled'].indexOf(data['Session Status']) === -1) record.sheet.getRange(record.row, map['Session Status']).setValue('Scheduled');
+  if (['Passed','Cancelled','Completed','Held'].indexOf(data['Session Status']) === -1) record.sheet.getRange(record.row, map['Session Status']).setValue('Scheduled');
   SpreadsheetApp.flush();
   adminLog_(adminEmail, action, caseId, data['Student Name'], ['Calendar Invitation Status','Session Status'], 'Success', guestEmails.length + ' guests invited');
   return {ok:true, message:(action === 'Created calendar event' ? 'Calendar event created' : 'Calendar event updated') + ' and RSVP invitations sent to ' + guestEmails.length + ' participant(s). '+calendarReview.message, calendarReview:calendarReview, caseData:adminCaseObject_(adminFindCase_(caseId)), cases:adminListCases_()};
@@ -2572,13 +2623,26 @@ function sendResultOutcomeEmail(caseId, clientData) {
     mailOptions.attachments = attachments;
   }
 
-  try {
-    adminSendEmail_(mailOptions);
-  } catch (error) {
-    record.sheet.getRange(record.row, record.map['Result Email Status']).setValue('Error');
-    SpreadsheetApp.flush();
-    adminLog_(adminEmail, 'Result email failed', caseId, data['Student Name'], ['Result Email Status'], 'Error', error.message || String(error));
-    throw new Error('The result email could not be sent: ' + (error.message || String(error)));
+  const dispatchKey = 'OUTCOME_EMAIL_DISPATCHED_' + caseId;
+  const props = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) ? PropertiesService.getScriptProperties() : null;
+  const isResend = Boolean(clientData && clientData._resendConfirmed);
+  if (isResend && props) {
+    try { props.deleteProperty(dispatchKey); } catch (e) {}
+  }
+
+  const alreadyDispatched = props && Boolean(props.getProperty(dispatchKey));
+  if (!alreadyDispatched) {
+    try {
+      adminSendEmail_(mailOptions);
+      if (props) {
+        props.setProperty(dispatchKey, new Date().toISOString());
+      }
+    } catch (error) {
+      record.sheet.getRange(record.row, record.map['Result Email Status']).setValue('Error');
+      SpreadsheetApp.flush();
+      adminLog_(adminEmail, 'Result email failed', caseId, data['Student Name'], ['Result Email Status'], 'Error', error.message || String(error));
+      throw new Error('The result email could not be sent: ' + (error.message || String(error)));
+    }
   }
 
   const now = new Date();
@@ -2589,6 +2653,9 @@ function sendResultOutcomeEmail(caseId, clientData) {
     record.sheet.getRange(record.row, record.map['Result Confirmation Letter Link']).setValue(resultPdf.url);
   }
   SpreadsheetApp.flush();
+  if (props) {
+    try { props.deleteProperty(dispatchKey); } catch (e) {}
+  }
   adminLog_(adminEmail, currentEmailStatus === 'resend approved' ? 'Resent result email' : 'Sent result email', caseId, data['Student Name'], ['Result Email Status','Result Email Sent At'], 'Success', studentEmail + (supervisorEmail ? ' (CC: ' + supervisorEmail + ')' : '') + ' with ' + attachments.length + ' attachments: ' + attachmentSummary.join(', '));
   const refreshedData = getAdminCase(caseId);
   return {
@@ -2622,44 +2689,23 @@ function sendPanelInvitations(caseId, clientData) {
   data['Examiner 1 Role'] = ex1Role;
   if (record.map['Examiner 1 Role']) record.sheet.getRange(record.row, record.map['Examiner 1 Role']).setValue(ex1Role);
 
-  const ex2Role = adminResolveExaminerRole_(data, 2);
-  const ex2Key = ex2Role === 'External Examiner' ? 'APPOINTMENT_EXTERNAL_EXAMINER' : 'APPOINTMENT_INTERNAL_EXAMINER';
-  data['Examiner 2 Role'] = ex2Role;
-  if (record.map['Examiner 2 Role']) record.sheet.getRange(record.row, record.map['Examiner 2 Role']).setValue(ex2Role);
-
-  // 2. Ensure student Drive folder
-  const studentFolder = adminEnsureStudentFolder_(record, data);
-
-  // 3. Generate Appointment Letter PDFs for Chairperson, Examiner 1, Examiner 2
-  const chairRecipient = { name: data['Chairperson'], email: data['Chair Email'], role: 'Chairperson' };
-  const chairPdf = adminGenerateAppointmentLetterPdf_(record, data, chairRecipient, 'APPOINTMENT_CHAIRPERSON', studentFolder);
-  if (record.map['Chair Appointment Letter Link']) {
-    record.sheet.getRange(record.row, record.map['Chair Appointment Letter Link']).setValue(chairPdf.url);
-    data['Chair Appointment Letter Link'] = chairPdf.url;
+  const hasEx2 = Boolean(String(data['Examiner 2'] || '').trim() || String(data['Examiner 2 Email'] || '').trim());
+  let ex2Role = '';
+  if (hasEx2) {
+    ex2Role = adminResolveExaminerRole_(data, 2);
+    data['Examiner 2 Role'] = ex2Role;
+    if (record.map['Examiner 2 Role']) record.sheet.getRange(record.row, record.map['Examiner 2 Role']).setValue(ex2Role);
   }
 
-  const ex1Recipient = { name: data['Examiner 1'], email: data['Examiner 1 Email'], role: ex1Role };
-  const ex1Pdf = adminGenerateAppointmentLetterPdf_(record, data, ex1Recipient, ex1Key, studentFolder);
-  if (record.map['Examiner 1 Appointment Letter Link']) {
-    record.sheet.getRange(record.row, record.map['Examiner 1 Appointment Letter Link']).setValue(ex1Pdf.url);
-    data['Examiner 1 Appointment Letter Link'] = ex1Pdf.url;
-  }
-
-  const ex2Recipient = { name: data['Examiner 2'], email: data['Examiner 2 Email'], role: ex2Role };
-  const ex2Pdf = adminGenerateAppointmentLetterPdf_(record, data, ex2Recipient, ex2Key, studentFolder);
-  if (record.map['Examiner 2 Appointment Letter Link']) {
-    record.sheet.getRange(record.row, record.map['Examiner 2 Appointment Letter Link']).setValue(ex2Pdf.url);
-    data['Examiner 2 Appointment Letter Link'] = ex2Pdf.url;
-  }
-
-  SpreadsheetApp.flush();
-
-  // 4. Validate panel slots
+  // 2. Validate panel slots UPFRONT before any Drive PDF generation or email dispatch
   const panelSlots = [
-    { name: data['Chairperson'], email: String(data['Chair Email'] || '').trim(), role: 'Chairperson', pdf: chairPdf },
-    { name: data['Examiner 1'], email: String(data['Examiner 1 Email'] || '').trim(), role: ex1Role, pdf: ex1Pdf },
-    { name: data['Examiner 2'], email: String(data['Examiner 2 Email'] || '').trim(), role: ex2Role, pdf: ex2Pdf }
+    { name: String(data['Chairperson'] || '').trim(), email: String(data['Chair Email'] || '').trim(), role: 'Chairperson', docKey: 'APPOINTMENT_CHAIRPERSON', linkField: 'Chair Appointment Letter Link' },
+    { name: String(data['Examiner 1'] || '').trim(), email: String(data['Examiner 1 Email'] || '').trim(), role: ex1Role, docKey: ex1Key, linkField: 'Examiner 1 Appointment Letter Link' }
   ];
+  if (hasEx2) {
+    const ex2Key = ex2Role === 'External Examiner' ? 'APPOINTMENT_EXTERNAL_EXAMINER' : 'APPOINTMENT_INTERNAL_EXAMINER';
+    panelSlots.push({ name: String(data['Examiner 2'] || '').trim(), email: String(data['Examiner 2 Email'] || '').trim(), role: ex2Role, docKey: ex2Key, linkField: 'Examiner 2 Appointment Letter Link' });
+  }
 
   panelSlots.forEach(function(slot) {
     adminRequired_(slot.name, slot.role + ' name');
@@ -2669,11 +2715,37 @@ function sendPanelInvitations(caseId, clientData) {
 
   const ccEmails = adminParseEmailList_(data['Additional Invitees']);
 
+  // 3. Ensure student Drive folder and generate appointment PDFs if not already generated/linked
+  const studentFolder = adminEnsureStudentFolder_(record, data);
+  panelSlots.forEach(function(slot) {
+    const pdf = adminGenerateAppointmentLetterPdf_(record, data, { name: slot.name, email: slot.email, role: slot.role }, slot.docKey, studentFolder);
+    slot.pdf = pdf;
+    if (record.map[slot.linkField]) {
+      record.sheet.getRange(record.row, record.map[slot.linkField]).setValue(pdf.url);
+      data[slot.linkField] = pdf.url;
+    }
+  });
+
+  SpreadsheetApp.flush();
+
+  // 4. Dispatch with per-recipient tracking to ensure idempotency and resumability on partial failure
+  const props = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) ? PropertiesService.getScriptProperties() : null;
+  const headerBlob = adminGetEmailHeaderBlob_();
+  let dispatchedCount = 0;
+  let skippedCount = 0;
+
   try {
     panelSlots.forEach(function(slot) {
+      const personEmail = slot.email.toLowerCase();
+      const dispatchKey = 'PANEL_INVITE_DISPATCHED_' + caseId + '_' + personEmail;
+
+      if (props && props.getProperty(dispatchKey)) {
+        skippedCount++;
+        return;
+      }
+
       const person = { name: slot.name, email: slot.email, role: slot.role, roles: [slot.role] };
       const assembled = adminAssembleEmail_('PANEL_INVITATION', data, person);
-      const personEmail = slot.email.toLowerCase();
       const mailOptions = {
         to: slot.email,
         subject: assembled.subject,
@@ -2681,7 +2753,6 @@ function sendPanelInvitations(caseId, clientData) {
         htmlBody: assembled.htmlBody,
         attachments: [slot.pdf.blob]
       };
-      const headerBlob = adminGetEmailHeaderBlob_();
       if (headerBlob) {
         mailOptions.inlineImages = { emailHeader: headerBlob };
       }
@@ -2690,12 +2761,23 @@ function sendPanelInvitations(caseId, clientData) {
         if (filteredCc.length > 0) mailOptions.cc = filteredCc.join(', ');
       }
       adminSendEmail_(mailOptions);
+      if (props) {
+        props.setProperty(dispatchKey, new Date().toISOString());
+      }
+      dispatchedCount++;
     });
   } catch (error) {
     record.sheet.getRange(record.row, record.map['Invitation Email Status']).setValue('Error');
     SpreadsheetApp.flush();
-    adminLog_(adminEmail, 'Panel invitation failed', caseId, data['Student Name'], ['Invitation Email Status'], 'Error', error.message || String(error));
+    adminLog_(adminEmail, 'Panel invitation failed', caseId, data['Student Name'], ['Invitation Email Status'], 'Error', (error.message || String(error)) + ' (dispatched ' + dispatchedCount + ', skipped ' + skippedCount + ')');
     throw error;
+  }
+
+  // All recipients successfully dispatched; clean up per-recipient dispatch keys
+  if (props) {
+    panelSlots.forEach(function(slot) {
+      props.deleteProperty('PANEL_INVITE_DISPATCHED_' + caseId + '_' + slot.email.toLowerCase());
+    });
   }
 
   const now = new Date();
@@ -2825,8 +2907,7 @@ function adminEnsureStudentFolder_(record, data) {
   if (studentKey) {
     try {
       const studentSheet = adminStudentSheet_();
-      const sMap = {};
-      ADMIN_STUDENT_HEADERS.forEach(function(h, i) { sMap[h] = i + 1; });
+      const sMap = adminStudentHeaderMap_(studentSheet);
       const count = studentSheet.getLastRow() - 1;
       if (count > 0) {
         const keys = studentSheet.getRange(2, sMap['Student Key'], count, 1).getDisplayValues();
@@ -3570,9 +3651,12 @@ function adminRequireDraft_(data, record) {
 function adminPanelRecipients_(data, requireComplete) {
   const roles = [
     {name:data['Chairperson'], email:data['Chair Email'], role:'Chairperson'},
-    {name:data['Examiner 1'], email:data['Examiner 1 Email'], role:data['Examiner 1 Role'] || 'Examiner 1'},
-    {name:data['Examiner 2'], email:data['Examiner 2 Email'], role:data['Examiner 2 Role'] || 'Examiner 2'}
+    {name:data['Examiner 1'], email:data['Examiner 1 Email'], role:data['Examiner 1 Role'] || 'Examiner 1'}
   ];
+  const hasEx2 = Boolean(String(data['Examiner 2'] || '').trim() || String(data['Examiner 2 Email'] || '').trim());
+  if (hasEx2) {
+    roles.push({name:data['Examiner 2'], email:data['Examiner 2 Email'], role:data['Examiner 2 Role'] || 'Examiner 2'});
+  }
   if (requireComplete) roles.forEach(function(person) {
     adminRequired_(person.name, person.role + ' name');
     adminRequired_(person.email, person.role + ' email');
@@ -4020,7 +4104,17 @@ function adminStudentSheet_(){
 function adminStudentRows_(){
   const sheet=adminStudentSheet_();
   if(sheet.getLastRow()<2) return [];
-  return sheet.getRange(2,1,sheet.getLastRow()-1,ADMIN_STUDENT_HEADERS.length).getDisplayValues().map(function(row,index){const data={row:index+2};ADMIN_STUDENT_HEADERS.forEach(function(h,i){data[h]=String(row[i]||'').trim();});return data;}).filter(function(data){return Boolean(data['Student Key']||data['Student Name']);});
+  const map=adminStudentHeaderMap_(sheet);
+  const lastCol=sheet.getLastColumn();
+  const rows=sheet.getRange(2,1,sheet.getLastRow()-1,lastCol).getDisplayValues();
+  return rows.map(function(row,index){
+    const data={row:index+2};
+    ADMIN_STUDENT_HEADERS.forEach(function(h){
+      const col=map[h];
+      data[h]=col ? String(row[col-1]||'').trim() : '';
+    });
+    return data;
+  }).filter(function(data){return Boolean(data['Student Key']||data['Student Name']);});
 }
 
 function adminFindStudent_(studentKey){
@@ -4038,14 +4132,22 @@ function adminFindStudent_(studentKey){
 function adminListCases_() {
   const sheet=adminSheet_(),map=adminHeaderMap_(sheet),count=sheet.getLastRow()-ADMIN_CONFIG.HEADER_ROW;
   if(count<1) return [];
-  return sheet.getRange(ADMIN_CONFIG.HEADER_ROW+1,1,count,sheet.getLastColumn()).getDisplayValues().filter(function(row){return String(row[map['Case ID']-1]||row[map['Student Name']-1]).trim();}).map(function(row){const raw={};Object.keys(map).forEach(function(h){raw[h]=row[map[h]-1]||'';});return {
+  return sheet.getRange(ADMIN_CONFIG.HEADER_ROW+1,1,count,sheet.getLastColumn()).getDisplayValues().filter(function(row){return String(row[map['Case ID']-1]||row[map['Student Name']-1]).trim();}).map(function(row){
+    const raw={};Object.keys(map).forEach(function(h){raw[h]=row[map[h]-1]||'';});
+    const resStatus = normaliseAdmin_(row[map['Result Email Status']-1]);
+    const resSentAt = String(row[map['Result Email Sent At']-1]||'').trim();
+    const resLetter = String(row[map['Result Confirmation Letter Link']-1]||'').trim();
+    const isSentStatus = Boolean(resStatus && resStatus.indexOf('sent') >= 0 && resStatus.indexOf('not') < 0 && resStatus.indexOf('ready') < 0);
+    const outcomeSent = Boolean(isSentStatus || resSentAt || resLetter);
+    return {
     workflow:wfModel_(raw),
-    caseId:String(row[map['Case ID']-1]||'').trim(),studentKey:String(row[map['Student Key']-1]||'').trim(),studentName:String(row[map['Student Name']-1]||'').trim(),progressionRoute:String(row[map['Progression Route']-1]||'').trim(),defenceType:String(row[map['Defence Type']-1]||'').trim(),stageAttempt:String(row[map['Stage Attempt']-1]||'1').trim(),sessionDate:String(row[map['Session Date']-1]||'').trim(),sessionStatus:String(row[map['Session Status']-1]||'').trim(),resultStatus:String(row[map['Result Status']-1]||'').trim(),resultScale:String(row[map['Result Scale']-1]||'').trim(),submissionEnabled:String(row[map['Submission Enabled']-1]||'').trim(),caseStatus:String(row[map['Case Status']-1]||'Active').trim(),hasDraft:Boolean(String(row[map['Student Draft Link']-1]||'').trim()),
+    caseId:String(row[map['Case ID']-1]||'').trim(),studentKey:String(row[map['Student Key']-1]||'').trim(),studentName:String(row[map['Student Name']-1]||'').trim(),progressionRoute:String(row[map['Progression Route']-1]||'').trim(),defenceType:String(row[map['Defence Type']-1]||'').trim(),stageAttempt:String(row[map['Stage Attempt']-1]||'1').trim(),sessionDate:String(row[map['Session Date']-1]||'').trim(),sessionStatus:String(row[map['Session Status']-1]||'').trim(),resultStatus:String(row[map['Result Status']-1]||'').trim(),resultScale:String(row[map['Result Scale']-1]||'').trim(),resultEmailStatus:String(row[map['Result Email Status']-1]||'').trim(),submissionEnabled:String(row[map['Submission Enabled']-1]||'').trim(),caseStatus:String(row[map['Case Status']-1]||'Active').trim(),hasDraft:Boolean(String(row[map['Student Draft Link']-1]||'').trim()),
     hasReport1:adminReportReceived_(raw,'Examiner 1'),
     hasReport2:adminReportReceived_(raw,'Examiner 2'),
-    outcomeEmailSent:normaliseAdmin_(row[map['Result Email Status']-1])==='sent'&&Boolean(String(row[map['Result Email Sent At']-1]||'').trim()),
+    outcomeEmailSent:outcomeSent,
     programme:String(row[map['Programme']-1]||'').trim(),
     supervisor:String(row[map['Supervisor']-1]||'').trim(),
+    supervisorEmail:map['Supervisor Email']?String(row[map['Supervisor Email']-1]||'').trim():'',
     chairperson:String(row[map['Chairperson']-1]||'').trim(),
     examiner1:String(row[map['Examiner 1']-1]||'').trim(),
     examiner2:String(row[map['Examiner 2']-1]||'').trim(),
@@ -4155,6 +4257,7 @@ function adminListStudents_(preloadedCases){
       programme: student['Programme'],
       researchTitle: student['Research Title'],
       supervisor: student['Supervisor'],
+      supervisorEmail: student['Supervisor Email'] || '',
       progressionRoute: student['Progression Route'] || 'Custom',
       studentStatus: student['Student Status'] || 'Active',
       activeCaseId: active ? active.caseId : '',
@@ -4187,7 +4290,7 @@ function getAdminBootstrap(){
     adminEmail: email,
     portalUrls: {
       examinerPortal: ADMIN_CONFIG.PANEL_PORTAL_URL,
-      studentPortal: 'https://script.google.com/a/innovative.edu.my/macros/s/AKfycbz46JF_uQ9yTLntM0bBTqzReywsKjVyM7yFthupgAS7StthHMviR3mI0ZgXC-U7COZq_A/exec',
+      studentPortal: ADMIN_CONFIG.STUDENT_PORTAL_URL,
       masterDriveFolder: 'https://drive.google.com/drive/folders/' + ADMIN_CONFIG.ROOT_FOLDER_ID
     },
     cases: cases,
@@ -4199,7 +4302,7 @@ function getAdminBootstrap(){
     emailSenders: adminGetEmailSendersCached_(),
     senderDiagnostics: adminGetSenderDiagnostics_(),
     signatory: adminGetSignatoryCached_(),
-    officialForms: (typeof getOrSetupOfficialFormsFolder_ === 'function' ? getOrSetupOfficialFormsFolder_() : null),
+    officialForms: (typeof getOrSetupOfficialFormsFolder_ === 'function' ? getOrSetupOfficialFormsFolder_(true) : null),
     options: {
       defenceType: ['Proposal Defence','Viva Voce'],
       progressionRoute: ['Standard','Transfer','Custom'],
@@ -4223,10 +4326,23 @@ function adminResetDeliberation(caseId) {
   const record = adminFindCase_(caseId);
   if (!record) throw new Error('Case not found: ' + caseId);
 
-  if(wfNorm_(wfRaw_(record)['Case Status'])==='closed')throw new Error('Reopen the stage explicitly before resetting its outcome.');
+  const raw = wfRaw_(record);
+  if(wfNorm_(raw['Case Status'])==='closed')throw new Error('Reopen the stage explicitly before resetting its outcome.');
   const sheet = record.sheet;
   const row = record.row;
   const map = record.map;
+
+  const oldEvidence = {
+    finalThesisLink: wfText_(raw['Final Thesis Link']),
+    matrixLink: wfText_(raw['Correction Matrix Link']),
+    receivedAt: wfText_(raw['Final Submission Received']),
+    resultScale: wfText_(raw['Result Scale']),
+    resultStatus: wfText_(raw['Result Status'])
+  };
+  wfAppend_(WF_EVENT_SHEET, record.caseId, record.studentKey, 'OUTCOME_RESET', adminEmail, {
+    reason: 'Deliberation reset to Pending by administrator',
+    supersededEvidence: oldEvidence
+  });
 
   if (map['Session Status']) sheet.getRange(row, map['Session Status']).setValue('Scheduled');
   if (map['Result Scale']) sheet.getRange(row, map['Result Scale']).setValue('Not recorded');
@@ -4234,6 +4350,12 @@ function adminResetDeliberation(caseId) {
   if (map['Corrections Deadline']) sheet.getRange(row, map['Corrections Deadline']).setValue('');
   if (map['Final Submission Due']) sheet.getRange(row, map['Final Submission Due']).setValue('');
   if (map['Result Email Status']) sheet.getRange(row, map['Result Email Status']).setValue('Not prepared');
+  if (map['Result Email Sent At']) sheet.getRange(row, map['Result Email Sent At']).setValue('');
+  if (map['Final Thesis Link']) sheet.getRange(row, map['Final Thesis Link']).setValue('');
+  if (map['Correction Matrix Link']) sheet.getRange(row, map['Correction Matrix Link']).setValue('');
+  if (map['Final Submission Received']) sheet.getRange(row, map['Final Submission Received']).setValue('');
+  if (map['Final Submission Status']) sheet.getRange(row, map['Final Submission Status']).setValue('Pending result details');
+  if (map['Endorsement Status']) sheet.getRange(row, map['Endorsement Status']).setValue('Not recorded');
   SpreadsheetApp.flush();
 
   const data = adminCaseObject_(record);
@@ -4268,7 +4390,7 @@ function saveAdminCaseLocked_(payload){
     if(route==='Custom'&&['Proposal Defence','Viva Voce'].indexOf(String(values['Defence Type']||''))<0) throw new Error('Select the initial defence type for the custom route.');
     const duplicate=adminStudentRows_().find(function(student){return normaliseAdmin_(student['Student Name'])===normaliseAdmin_(values['Student Name']);});
     if(duplicate) throw new Error('This student is already registered. Open the existing student profile instead.');
-    values['Student Key']='STU-'+String(adminNextStudentNumber_(adminStudentSheet_())).padStart(5,'0');
+    values['Student Key'] = String(values['Student Key'] || '').trim() || ('STU-' + String(adminNextStudentNumber_(adminStudentSheet_())).padStart(5, '0'));
     values['Stage Attempt']='1';
   } else {
     const record=adminFindCase_(payload.originalCaseId);
@@ -4307,6 +4429,7 @@ function bulkRegisterAdminStudents(records, options) {
     const caseSheet = adminSheet_();
     const caseMap = adminHeaderMap_(caseSheet);
     const studentSheet = adminStudentSheet_();
+    const studentMap = adminStudentHeaderMap_(studentSheet);
 
     // Map existing students by normalized name and normalized email
     const existingStudents = adminStudentRows_();
@@ -4407,21 +4530,28 @@ function bulkRegisterAdminStudents(records, options) {
       }
 
       // 1. Student Master Row:
-      // ['Student Key','Student Name','Student Email','Programme','Research Title','Supervisor','Supervisor Email','Progression Route','Student Status','Student Folder ID','Registered At','Updated At']
-      newStudentRows.push([
-        studentKey,
-        name,
-        email,
-        programme,
-        researchTitle,
-        supervisor,
-        supervisorEmail,
-        route,
-        'Active',
-        '',
-        now,
-        now
-      ]);
+      const studentRow = new Array(studentSheet.getLastColumn()).fill('');
+      const studentObj = {
+        'Student Key': studentKey,
+        'Student Name': name,
+        'Student Email': email,
+        'Programme': programme,
+        'Research Title': researchTitle,
+        'Supervisor': supervisor,
+        'Supervisor Email': supervisorEmail,
+        'Progression Route': route,
+        'Student Status': 'Active',
+        'Student Folder ID': '',
+        'Registered At': now,
+        'Updated At': now
+      };
+      Object.keys(studentObj).forEach(function(h) {
+        const col = studentMap[h];
+        if (col && col <= studentRow.length) {
+          studentRow[col - 1] = studentObj[h];
+        }
+      });
+      newStudentRows.push(studentRow);
 
       // 2. Defence Case Row
       const caseRow = new Array(caseSheet.getLastColumn()).fill('');
@@ -4478,7 +4608,7 @@ function bulkRegisterAdminStudents(records, options) {
     if (studentLastRow + newStudentRows.length > studentSheet.getMaxRows()) {
       studentSheet.insertRowsAfter(studentSheet.getMaxRows(), newStudentRows.length + 20);
     }
-    studentSheet.getRange(studentLastRow + 1, 1, newStudentRows.length, ADMIN_STUDENT_HEADERS.length).setValues(newStudentRows);
+    studentSheet.getRange(studentLastRow + 1, 1, newStudentRows.length, studentSheet.getLastColumn()).setValues(newStudentRows);
 
     // Write to Defence Cases
     const caseLastRow = caseSheet.getLastRow();
@@ -4515,25 +4645,71 @@ function adminUpsertStudentFromCase_(data){
   const sheet=adminStudentSheet_();
   const key=String(data['Student Key']||'').trim();
   if(!key) return;
+  const map=adminStudentHeaderMap_(sheet);
   const rows=adminStudentRows_();
   const existing=rows.find(function(student){return student['Student Key']===key;});
-  const registered=existing&&existing['Registered At']?existing['Registered At']:new Date();
-  const folder=String(data['Student Folder ID']||'').trim()||(existing?existing['Student Folder ID']:'');
-  const values=[key,data['Student Name'],data['Student Email'],data['Programme'],data['Research Title'],data['Supervisor'],data['Supervisor Email'],data['Progression Route']||'Custom',existing?existing['Student Status']:'Active',folder,registered,new Date()];
-  if(existing) sheet.getRange(existing.row,1,1,values.length).setValues([values]); else sheet.appendRow(values);
+  const now = new Date();
+
+  if(existing) {
+    // Student Master owns: Progression Route, Supervisor, Supervisor Email, Research Title, Programme, Student Email, Student Name, Student Status.
+    // Case saves must preserve existing master values so a historical case save cannot overwrite master data.
+    const lastCol = sheet.getLastColumn();
+    const fullRow = sheet.getRange(existing.row, 1, 1, lastCol).getValues()[0];
+    
+    // Only update folder if the case provides one and master was empty
+    const caseFolder = String(data['Student Folder ID']||'').trim();
+    if(caseFolder && !existing['Student Folder ID'] && map['Student Folder ID']) {
+      fullRow[map['Student Folder ID']-1] = caseFolder;
+    }
+    // Always update Updated At
+    if(map['Updated At']) {
+      fullRow[map['Updated At']-1] = now;
+    }
+    sheet.getRange(existing.row, 1, 1, fullRow.length).setValues([fullRow]);
+  } else {
+    // New student record being registered: initialize from case data
+    const lastCol = Math.max(sheet.getLastColumn(), ADMIN_STUDENT_HEADERS.length);
+    const newRow = new Array(lastCol).fill('');
+    const newValues = {
+      'Student Key': key,
+      'Student Name': data['Student Name'] || '',
+      'Student Email': data['Student Email'] || '',
+      'Programme': data['Programme'] || '',
+      'Research Title': data['Research Title'] || '',
+      'Supervisor': data['Supervisor'] || '',
+      'Supervisor Email': data['Supervisor Email'] || '',
+      'Progression Route': data['Progression Route'] || 'Standard',
+      'Student Status': 'Active',
+      'Student Folder ID': String(data['Student Folder ID']||'').trim(),
+      'Registered At': now,
+      'Updated At': now
+    };
+    ADMIN_STUDENT_HEADERS.forEach(function(h) {
+      if(map[h]) newRow[map[h]-1] = newValues[h] != null ? newValues[h] : '';
+    });
+    sheet.appendRow(newRow);
+  }
 }
 
 function adminStudentHeaderMap_(sheet) {
   const lastCol = Math.max(1, sheet.getLastColumn());
   const headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
   const map = {};
+  const duplicates = [];
   headers.forEach(function(h, i) {
     const raw = String(h || '').trim();
-    if (raw) map[raw] = i + 1;
+    if (raw) {
+      if (map[raw]) duplicates.push(raw);
+      map[raw] = i + 1;
+    }
   });
-  ADMIN_STUDENT_HEADERS.forEach(function(h, i) {
-    if (!map[h]) map[h] = i + 1;
-  });
+  if (duplicates.length) {
+    throw new Error('Student Master schema error: duplicate header(s) found: ' + duplicates.join(', ') + '. Stop and fix the sheet headers.');
+  }
+  const missing = ADMIN_STUDENT_HEADERS.filter(function(h) { return !map[h]; });
+  if (missing.length) {
+    throw new Error('Student Master schema error: missing required header(s): ' + missing.join(', ') + '. Stop and fix the sheet headers.');
+  }
   return map;
 }
 
@@ -4632,23 +4808,43 @@ function createNextDefenceStageLocked_(studentKey,defenceType){
   const type = String(defenceType||'').trim();
   if(['Proposal Defence','Viva Voce'].indexOf(type)<0) throw new Error('Select a valid defence stage.');
   const cases = adminListCases_().filter(function(item){ return item.studentKey === studentKey; });
-  const open = cases.find(function(item){ return item.defenceType === type && normaliseAdmin_(item.caseStatus) !== 'closed'; });
-  if(open) throw new Error('This student already has an open ' + type + ' case (' + open.caseId + ').');
+  const openAny = cases.find(function(item){ return normaliseAdmin_(item.caseStatus) !== 'closed'; });
+  if(openAny) throw new Error('This student already has an active stage (' + openAny.caseId + ' - ' + openAny.defenceType + '). Close or complete it before opening a new stage.');
 
   const sameStageCases = cases.filter(function(item){ return item.defenceType === type; });
   const attempt = 1 + sameStageCases.length;
   const isReexam = attempt > 1;
   const lastSameStage = sameStageCases.length ? sameStageCases[sameStageCases.length - 1] : null;
 
+  if(isReexam) {
+    if(!lastSameStage) throw new Error('No previous stage attempt found to re-examine.');
+    if(normaliseAdmin_(lastSameStage.caseStatus) !== 'closed') {
+      throw new Error('Previous attempt (' + lastSameStage.caseId + ') must be closed before opening a re-examination attempt.');
+    }
+    const lastDecision = lastSameStage.workflow ? lastSameStage.workflow.decision : null;
+    const isReexamDecision = lastDecision ? lastDecision.code === 'REEXAM' :
+      (lastSameStage.resultScale === 'Scale 4' || normaliseAdmin_(lastSameStage.resultStatus).indexOf('re-exam') >= 0);
+    if(!isReexamDecision) {
+      throw new Error('A repeat attempt is only permitted following a Re-examination decision on the previous attempt.');
+    }
+  }
+
+  if(type === 'Proposal Defence' && student['Progression Route'] === 'Transfer'){
+    throw new Error('Transfer route proceeds directly to Viva Voce. Proposal Defence is not applicable.');
+  }
+
   if(type === 'Viva Voce' && attempt === 1 && student['Progression Route'] === 'Standard'){
-    const passedProposal = cases.some(function(item){
-      const isClosed = normaliseAdmin_(item.caseStatus) === 'closed';
-      const isPass = ['Scale 1','Scale 2','Scale 3'].indexOf(item.resultScale) >= 0 ||
-        ['pass','passed','conditional pass with minor corrections','conditional pass with major corrections'].indexOf(normaliseAdmin_(item.resultStatus)) >= 0 ||
-        (item.workflow && item.workflow.decision && item.workflow.decision.pass);
-      return item.defenceType === 'Proposal Defence' && isClosed && isPass;
-    });
-    if(!passedProposal) throw new Error('A passed and closed Proposal Defence stage is required before opening the Viva Voce stage for Standard route students.');
+    const proposal = cases.filter(function(item){ return item.defenceType === 'Proposal Defence'; }).slice(-1)[0];
+    if(!proposal) throw new Error('Proposal Defence stage is required before opening Viva Voce for Standard route students.');
+    const isClosed = normaliseAdmin_(proposal.caseStatus) === 'closed';
+    const isStageComplete = proposal.workflow ? proposal.workflow.stageComplete : (isClosed && proposal.resultScale === 'Scale 1');
+    if(!isClosed || !isStageComplete) {
+      throw new Error('A verified, passed, and closed Proposal Defence stage is required before opening the Viva Voce stage for Standard route students.');
+    }
+    const vivaNotice = proposal.workflow && proposal.workflow.vivaNotice;
+    if(!vivaNotice || vivaNotice.status !== 'Approved') {
+      throw new Error('An approved Viva Voce notice of intention is required before opening the Viva Voce stage.');
+    }
   }
 
   const initialValues = {
@@ -4691,10 +4887,11 @@ function createNextDefenceStageLocked_(studentKey,defenceType){
     const previous = cases.filter(function(item){
       return item.defenceType === 'Proposal Defence' && normaliseAdmin_(item.caseStatus) === 'closed';
     }).slice(-1)[0];
-    if(previous) {
+    const notice = previous && previous.workflow ? previous.workflow.vivaNotice : null;
+    if(previous && notice && notice.id && notice.status === 'Approved') {
       wfAppend_(WF_EVENT_SHEET, result.caseId, studentKey, 'STAGE_OPENED', adminActor, {
         previousCaseId: previous.caseId,
-        noticeId: (previous.workflow && previous.workflow.vivaNotice) ? previous.workflow.vivaNotice.id : ''
+        noticeId: notice.id
       });
     }
   }
@@ -4821,7 +5018,7 @@ function adminGetSupervisionAndProgressData() {
     const supSheet = ss.getSheetByName(ADMIN_CONFIG.SUPERVISION_SHEET);
     const logs = [];
     if (supSheet && supSheet.getLastRow() > 1) {
-      const supValues = supSheet.getRange(2, 1, supSheet.getLastRow() - 1, Math.max(14, supSheet.getLastColumn())).getDisplayValues();
+      const supValues = supSheet.getRange(2, 1, supSheet.getLastRow() - 1, Math.max(18, supSheet.getLastColumn())).getDisplayValues();
       supValues.forEach(function(row, idx) {
         if (row[0] || row[3]) {
           logs.push({
@@ -4839,7 +5036,11 @@ function adminGetSupervisionAndProgressData() {
             recordedBy: row[10] || 'Candidate',
             endorsementStatus: row[11] || 'Pending Verification',
             supervisorRemarks: row[12] || '',
-            endorsedAt: row[13] || ''
+            endorsedAt: row[13] || '',
+            adminStatus: row[14] || '',
+            adminRemarks: row[15] || '',
+            adminAcknowledgedAt: row[16] || '',
+            adminAcknowledgedBy: row[17] || ''
           });
         }
       });
@@ -4865,10 +5066,37 @@ function adminGetSupervisionAndProgressData() {
             challenges: row[8],
             nextPlan: row[9],
             attachmentUrl: row[10],
-            status: row[11] || 'Submitted â€” Under Review',
+            status: row[11] || 'Submitted — Under Review',
             supervisorRemarks: row[12] || '',
             supervisorRating: row[13] || '',
             endorsedAt: row[14] || ''
+          });
+        }
+      });
+    }
+
+    // 3. Academic Requests
+    const reqSheet = ss.getSheetByName(ADMIN_CONFIG.REQUEST_SHEET || 'Student Requests');
+    const requests = [];
+    if (reqSheet && reqSheet.getLastRow() > 1) {
+      const reqValues = reqSheet.getRange(2, 1, reqSheet.getLastRow() - 1, Math.max(13, reqSheet.getLastColumn())).getDisplayValues();
+      reqValues.forEach(function(row, idx) {
+        if (row[0] || row[3]) {
+          requests.push({
+            rowIndex: idx + 2,
+            requestId: row[0] || ('REQ-' + (idx + 1)),
+            timestamp: row[1],
+            studentKey: row[2],
+            studentName: row[3],
+            programme: row[4],
+            supervisor: row[5],
+            requestType: row[6],
+            subject: row[7],
+            details: row[8],
+            attachmentUrl: row[9],
+            status: row[10] || 'Submitted — Pending Review',
+            adminRemarks: row[11] || '',
+            resolutionDate: row[12] || ''
           });
         }
       });
@@ -4885,13 +5113,14 @@ function adminGetSupervisionAndProgressData() {
       if (r.studentName) uniqueStudents[r.studentName.trim().toLowerCase()] = true;
     });
 
-    const verifiedCount = logs.filter(function(l) { return (l.endorsementStatus || '').toLowerCase().indexOf('verified') >= 0; }).length;
+    const verifiedCount = logs.filter(function(l) { return (l.endorsementStatus || '').toLowerCase().indexOf('verified') >= 0 || (l.adminStatus || '').toLowerCase().indexOf('verified') >= 0; }).length;
     const endorsedCount = reports.filter(function(r) { return (r.status || '').toLowerCase().indexOf('endorsed') >= 0; }).length;
 
     return {
       ok: true,
       supervisionLogs: logs.reverse(),
       progressReports: reports.reverse(),
+      academicRequests: requests.reverse(),
       stats: {
         totalLogs: logs.length,
         verifiedLogs: verifiedCount,
@@ -4899,12 +5128,52 @@ function adminGetSupervisionAndProgressData() {
         totalProgressReports: reports.length,
         endorsedProgressReports: endorsedCount,
         pendingProgressReports: reports.length - endorsedCount,
+        totalAcademicRequests: requests.length,
+        pendingAcademicRequests: requests.filter(function(r) { return (r.status || '').toLowerCase().indexOf('pending') >= 0; }).length,
         activeSupervisorsCount: Object.keys(uniqueSupervisors).length,
         activeSuperviseesCount: Object.keys(uniqueStudents).length
       }
     };
   } catch (e) {
-    return { ok: false, message: e.message || String(e), supervisionLogs: [], progressReports: [], stats: {} };
+    return { ok: false, message: e.message || String(e), supervisionLogs: [], progressReports: [], academicRequests: [], stats: {} };
+  }
+}
+
+function adminResolveAcademicRequest(payload) {
+  const adminEmail = adminAssert_();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (!payload || !payload.requestId) throw new Error('Request ID is required.');
+    const ss = adminSpreadsheet_();
+    const sheet = ss.getSheetByName(ADMIN_CONFIG.REQUEST_SHEET || 'Student Requests');
+    if (!sheet || sheet.getLastRow() < 2) throw new Error('Student Requests sheet not found.');
+
+    const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.max(13, sheet.getLastColumn())).getDisplayValues();
+    let targetRow = -1;
+    let studentName = '';
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i][0]).trim() === String(payload.requestId).trim()) {
+        targetRow = i + 2;
+        studentName = String(values[i][3] || '').trim();
+        break;
+      }
+    }
+    if (targetRow < 0) throw new Error('Request record not found: ' + payload.requestId);
+
+    const status = payload.status || payload.resolutionStatus || 'Approved';
+    const remarks = payload.remarks || payload.resolutionRemarks || '';
+    const dateStamp = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+
+    sheet.getRange(targetRow, 11).setValue(status);
+    sheet.getRange(targetRow, 12).setValue(remarks);
+    sheet.getRange(targetRow, 13).setValue(dateStamp);
+    SpreadsheetApp.flush();
+
+    adminLog_(adminEmail, 'Resolved academic request', payload.requestId, studentName, ['Status', 'Admin Remarks', 'Resolution Date'], 'Success', status);
+    return { ok: true, requestId: payload.requestId, status: status, remarks: remarks, resolutionDate: dateStamp };
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -4932,13 +5201,17 @@ function adminAcknowledgeSupervisionLog(payload) {
     const remarks = payload.remarks || '';
     const nowStr = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd HH:mm:ss');
 
-    sheet.getRange(targetRow, 12).setValue(status);
-    if (remarks) sheet.getRange(targetRow, 13).setValue(remarks);
-    sheet.getRange(targetRow, 14).setValue(nowStr);
+    if (sheet.getMaxColumns() < 18) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), 18 - sheet.getMaxColumns());
+    }
+    sheet.getRange(targetRow, 15).setValue(status);
+    if (remarks) sheet.getRange(targetRow, 16).setValue(remarks);
+    sheet.getRange(targetRow, 17).setValue(nowStr);
+    sheet.getRange(targetRow, 18).setValue(adminEmail);
     SpreadsheetApp.flush();
 
-    adminLog_(adminEmail, 'Verified supervision log', payload.logId, payload.studentName || '', ['Endorsement Status'], 'Success', status);
-    return { ok: true, logId: payload.logId, status: status, remarks: remarks, endorsedAt: nowStr };
+    adminLog_(adminEmail, 'Acknowledged supervision log', payload.logId, payload.studentName || '', ['Admin Status','Admin Remarks','Admin Acknowledged At','Admin Acknowledged By'], 'Success', status);
+    return { ok: true, logId: payload.logId, adminStatus: status, adminRemarks: remarks, adminAcknowledgedAt: nowStr, adminAcknowledgedBy: adminEmail };
   } finally {
     lock.releaseLock();
   }
@@ -5090,6 +5363,163 @@ function adminUploadStudentDraftLocked_(payload) {
     calendarUpdated: calendarUpdated,
     notifiedCount: notifiedCount,
     message: 'Student draft uploaded successfully.' + (calendarUpdated ? ' Calendar event updated.' : '') + (notifiedCount > 0 ? ' Notified ' + notifiedCount + ' panel member(s).' : ''),
+    caseData: adminCaseObject_(adminFindCase_(payload.caseId)),
+    cases: adminListCases_()
+  };
+}
+
+/**
+ * Direct Admin Upload / Replacement for Examiner Evaluation Report
+ * Allows administrators to manually upload or replace an evaluation report on behalf of Examiner 1 or Examiner 2.
+ * Uploads file to student's Drive folder, sets view permissions,
+ * updates sheet record (Link, Status, Updated At, legacy Examiner Report File),
+ * optionally resets Result Email Status, and logs to Admin and Panel audit logs.
+ */
+function adminUploadExaminerReportLocked_(payload) {
+  const adminEmail = adminAssert_();
+  if (!payload || !payload.caseId) throw new Error('Case ID is required.');
+  if (!payload.slot) throw new Error('Examiner slot (Examiner 1 or Examiner 2) is required.');
+  if (!payload.fileData || !payload.fileName) throw new Error('File data and filename are required.');
+
+  const isEx1 = String(payload.slot).indexOf('1') >= 0;
+  const isEx2 = String(payload.slot).indexOf('2') >= 0;
+  if (!isEx1 && !isEx2) throw new Error('Invalid examiner slot: must be Examiner 1 or Examiner 2.');
+  const slotLabel = isEx1 ? 'Examiner 1' : 'Examiner 2';
+
+  if (!/\.(pdf|doc|docx)$/i.test(payload.fileName)) {
+    throw new Error('Only PDF, DOC, and DOCX files are accepted for examiner reports.');
+  }
+
+  const record = adminFindCase_(payload.caseId);
+  if (!record) throw new Error('The selected case could not be found.');
+  if (payload.expectedRevision) {
+    wfAssertRevision_(record, payload.expectedRevision);
+  }
+  const data = adminCaseObject_(record);
+  if (wfNorm_(data['Case Status']) === 'closed') {
+    throw new Error('This defence stage is closed.');
+  }
+
+  const examinerName = String((isEx1 ? data['Examiner 1'] : data['Examiner 2']) || slotLabel).trim();
+
+  // 1. Ensure student Google Drive folder
+  const studentFolder = adminEnsureStudentFolder_(record, data);
+  if (!studentFolder) throw new Error('Could not access or create candidate Drive folder.');
+
+  // 2. Decode and save file to Drive
+  const cleanOriginal = String(payload.fileName || (slotLabel + '_Report.pdf')).replace(/[\\/:*?"<>|]/g, '_');
+  const dotIndex = cleanOriginal.lastIndexOf('.');
+  const ext = dotIndex >= 0 ? cleanOriginal.substring(dotIndex) : '.pdf';
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMdd-HHmmss');
+  const safeExaminer = examinerName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const savedName = String(payload.caseId) + '_' + (isEx1 ? 'Examiner1' : 'Examiner2') + '_' + safeExaminer + '_' + stamp + ext;
+
+  const bytes = Utilities.base64Decode(payload.fileData);
+  if (!bytes.length || bytes.length > 20 * 1024 * 1024) {
+    throw new Error('File is empty or exceeds the 20 MB limit.');
+  }
+
+  const blob = Utilities.newBlob(bytes, payload.mimeType || 'application/pdf', savedName);
+  const driveFile = studentFolder.createFile(blob);
+  try {
+    driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {
+    console.warn('Could not set public sharing on examiner report file: ' + e.message);
+  }
+
+  const fileUrl = driveFile.getUrl();
+
+  // 3. Update Defence Cases Sheet
+  const map = record.map;
+  const started = new Date();
+  if (isEx1) {
+    if (map['Examiner 1 Report Link']) record.sheet.getRange(record.row, map['Examiner 1 Report Link']).setValue(fileUrl);
+    if (map['Examiner 1 Report Status']) record.sheet.getRange(record.row, map['Examiner 1 Report Status']).setValue('Submitted');
+    data['Examiner 1 Report Link'] = fileUrl;
+    data['Examiner 1 Report Status'] = 'Submitted';
+  } else {
+    if (map['Examiner 2 Report Link']) record.sheet.getRange(record.row, map['Examiner 2 Report Link']).setValue(fileUrl);
+    if (map['Examiner 2 Report Status']) record.sheet.getRange(record.row, map['Examiner 2 Report Status']).setValue('Submitted');
+    data['Examiner 2 Report Link'] = fileUrl;
+    data['Examiner 2 Report Status'] = 'Submitted';
+  }
+
+  if (map['Panel Report Updated At']) {
+    record.sheet.getRange(record.row, map['Panel Report Updated At']).setValue(started);
+    data['Panel Report Updated At'] = started;
+  }
+
+  // Update legacy combined Examiner Report File
+  if (map['Examiner Report File']) {
+    const ex1Link = isEx1 ? fileUrl : String(data['Examiner 1 Report Link'] || '');
+    const ex2Link = isEx2 ? fileUrl : String(data['Examiner 2 Report Link'] || '');
+    const legacy = [];
+    if (ex1Link) legacy.push('Examiner 1: ' + ex1Link);
+    if (ex2Link) legacy.push('Examiner 2: ' + ex2Link);
+    record.sheet.getRange(record.row, map['Examiner Report File']).setValue(legacy.join('\n'));
+    data['Examiner Report File'] = legacy.join('\n');
+  }
+
+  // Handle Result Email Status
+  if (map['Result Email Status']) {
+    if (payload.resetEmailStatus) {
+      record.sheet.getRange(record.row, map['Result Email Status']).setValue('Not prepared');
+      data['Result Email Status'] = 'Not prepared';
+    } else {
+      const currentResStatus = wfNorm_(data['Result Status']);
+      const currentSessStatus = wfNorm_(data['Session Status']);
+      if (currentResStatus === 'decided' || currentSessStatus === 'completed') {
+        const hasEx2Appointed = Boolean(String(data['Examiner 2'] || data['Examiner 2 Email'] || '').trim());
+        const ex1Done = Boolean(data['Examiner 1 Report Link']);
+        const ex2Done = !hasEx2Appointed || Boolean(data['Examiner 2 Report Link']);
+        if (ex1Done && ex2Done) {
+          const eCell = record.sheet.getRange(record.row, map['Result Email Status']);
+          try { eCell.clearDataValidations(); } catch (eVal) {}
+          eCell.setValue('Ready to Send');
+          data['Result Email Status'] = 'Ready to Send';
+        }
+      }
+    }
+  }
+
+  SpreadsheetApp.flush();
+
+  // 4. Audit Logging
+  const isReplacement = Boolean(payload.isReplacement);
+  const logDetails = 'Admin ' + adminEmail + ' manually ' + (isReplacement ? 'replaced' : 'uploaded') + ' ' + slotLabel + ' report: ' + savedName + ' (' + cleanOriginal + ')';
+  adminLog_(adminEmail, (isReplacement ? 'Replaced ' : 'Uploaded ') + slotLabel + ' report', payload.caseId, data['Student Name'], [slotLabel + ' Report Link', slotLabel + ' Report Status'], 'Success', logDetails);
+
+  // Append to Panel Report Log if present
+  try {
+    const panelLogSheet = adminSpreadsheet_().getSheetByName('Panel Report Log');
+    if (panelLogSheet) {
+      panelLogSheet.appendRow([
+        started,
+        examinerName + ' (Admin manual: ' + adminEmail + ')',
+        slotLabel,
+        payload.caseId,
+        data['Student Name'],
+        data['Defence Type'],
+        cleanOriginal,
+        savedName,
+        fileUrl,
+        driveFile.getId(),
+        studentFolder.getId(),
+        isReplacement ? 'Replaced by Admin' : 'Submitted by Admin',
+        logDetails
+      ]);
+    }
+  } catch (logErr) {
+    console.warn('Panel Report Log append warning: ' + logErr.message);
+  }
+
+  return {
+    ok: true,
+    caseId: payload.caseId,
+    slot: slotLabel,
+    fileUrl: fileUrl,
+    fileName: savedName,
+    message: slotLabel + ' report ' + (isReplacement ? 'replaced' : 'uploaded') + ' successfully for ' + (data['Student Name'] || 'candidate') + '.',
     caseData: adminCaseObject_(adminFindCase_(payload.caseId)),
     cases: adminListCases_()
   };
